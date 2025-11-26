@@ -77,16 +77,13 @@ Think less todo-list, more creative workspace.
 ## 📸 Screenshots
 
 ### Dashboard
-<!-- Add dashboard screenshot here -->
-![Dashboard](./screenshots/dashboard.png)
+<img width="2213" height="1187" alt="image" src="https://github.com/user-attachments/assets/0c24f19b-d8fb-4db6-9ac4-d5b23821f14f" />
 
 ### Canvas Editor
-<!-- Add canvas editor screenshot here -->
-![Canvas Editor](./screenshots/canvas-editor.png)
+<img width="2239" height="1196" alt="image" src="https://github.com/user-attachments/assets/f65014a0-1766-4281-810c-711670755e13" />
 
 ### Calendar Integration
-<!-- Add calendar screenshot here -->
-![Calendar](./screenshots/calendar.png)
+<img width="2239" height="1190" alt="image" src="https://github.com/user-attachments/assets/3c2a7b7b-b99d-46ed-8643-d5ee8fcfa776" />
 
 ---
 
