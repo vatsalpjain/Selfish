@@ -61,6 +61,44 @@ export const deleteProject = async (projectId: string) => {
     const response = await API.delete(`/projects/${projectId}`);
     return response.data;
 }
+
+// Calendar APIs
+export const connectCalendar = async () => {
+    const response = await API.get('/calendar/auth/google');
+    return response.data;
+}
+
+export const disconnectCalendar = async () => {
+    const response = await API.delete('/calendar/disconnect');
+    return response.data;
+}
+
+export const getCalendarEvents = async () => {
+    const response = await API.get('/calendar/events');
+    return response.data;
+}
+
+export const addEvent = async (title: string, start: string, end: string) => {
+    // Convert datetime-local format to ISO 8601 with timezone
+    const startISO = new Date(start).toISOString();
+    const endISO = new Date(end).toISOString();
+    const response = await API.post('/calendar/addEvent', { title, start: startISO, end: endISO });
+    return response.data;
+}
+
+export const updateEvent = async (eventId: string, title: string, start: string, end: string) => {
+    // Convert datetime-local format to ISO 8601 with timezone
+    const startISO = new Date(start).toISOString();
+    const endISO = new Date(end).toISOString();
+    const response = await API.put('/calendar/updateEvent', { eventId, title, start: startISO, end: endISO });
+    return response.data;
+}
+
+export const deleteEvent = async (eventId: string) => {
+    const response = await API.delete('/calendar/deleteEvent', { data: { eventId } });
+    return response.data;
+}
+
 // Slide APIs
 export const createSlide = async (projectId: string, name: string) => {
     const response = await API.post('/slides', { projectId, name });

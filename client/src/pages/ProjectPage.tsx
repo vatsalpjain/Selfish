@@ -34,7 +34,7 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   // Extract projectId from the URL parameters (e.g., /projects/:projectId)
   const { projectId } = useParams<{ projectId: string }>();
-  
+
   // State to show save confirmation message
   const [saveMessage, setSaveMessage] = useState("");
   // State to show loading status
@@ -176,9 +176,16 @@ export default function ProjectPage() {
   // Show loading state while fetching project
   if (loading) {
     return (
-      // DARK THEME: Loading Screen
-      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
-        <div className="text-gray-400 text-lg">Loading slides...</div>
+      <div
+        className="min-h-screen flex items-center justify-center bg-gray-900"
+        style={{
+          backgroundImage: "url(/background.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }}
+      >
+        <div className="text-gray-300 text-lg">Loading slides...</div>
       </div>
     );
   }
@@ -186,11 +193,18 @@ export default function ProjectPage() {
   // Show error if project not found
   if (!project) {
     return (
-      // DARK THEME: Error Screen
-      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
+      <div
+        className="min-h-screen flex items-center justify-center bg-gray-900"
+        style={{
+          backgroundImage: "url(/background.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }}
+      >
         <div className="text-center">
-          <p className="text-gray-400 text-lg mb-4">Project not found</p>
-          <Link to="/dashboard" className="text-blue-400 hover:underline">
+          <p className="text-gray-300 text-lg mb-4">Project not found</p>
+          <Link to="/dashboard" className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-colors font-medium inline-block">
             Back to Dashboard
           </Link>
         </div>
@@ -200,71 +214,87 @@ export default function ProjectPage() {
   const currentSlide = getCurrentSlide();
 
   return (
-    // DARK THEME: Main Container
-    <div className="h-screen flex flex-col bg-zinc-900">
-      {/* Header - Dark Zinc Background */}
-      <nav className="bg-zinc-800 border-b border-zinc-700 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {/* Back Link */}
-          <Link
-            to="/dashboard"
-            className="text-gray-400 hover:text-white font-medium transition-colors"
-          >
-            ← Back
-          </Link>
-          {/* Title - White Text */}
-          <h1 className="text-xl font-bold text-white">{project.title}</h1>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Save status */}
-          {saveMessage && (
-            <span className="text-sm text-green-400 font-medium">
-              {saveMessage}
-            </span>
-          )}
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium"
-          >
-            Save
-          </button>
+    <div
+      className="h-screen flex flex-col bg-gray-900"
+      style={{
+        backgroundImage: "url(/background.png)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+      }}
+    >
+      {/* Floating Navbar */}
+      <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-6xl px-4">
+        <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Back Link */}
+              <Link
+                to="/dashboard"
+                className="text-gray-300 hover:text-white font-medium transition-colors"
+              >
+                ← Back
+              </Link>
+              {/* Title */}
+              <h2 className="text-xl font-bold text-white">{project.title}</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <h1 className="text-3xl font-extralight tracking-wider text-white">Selfish</h1>
+              <Link
+                to="/calendar"
+                className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium"
+              >
+                📅 Calendar
+              </Link>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Save status */}
+              {saveMessage && (
+                <span className="text-sm text-green-400 font-medium">
+                  {saveMessage}
+                </span>
+              )}
+              {/* Save button */}
+              <button
+                onClick={handleSave}
+                className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-colors font-medium"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - Dark Zinc Background */}
-        {/* 3. Sidebar (Slide List) */}
-        <aside className="w-64 bg-zinc-800 border-r border-zinc-700 flex flex-col">
-          <div className="p-4 border-b border-zinc-700">
-            <h2 className="text-gray-400 text-sm font-semibold uppercase tracking-wider">
+      <div className="flex-1 flex overflow-hidden pt-24">
+        {/* Glassmorphic Sidebar */}
+        <aside className="w-64 bg-white/5 backdrop-blur-sm border-r border-white/10 flex flex-col m-4 mr-0 rounded-2xl">
+          <div className="p-4 border-b border-white/10">
+            <h2 className="text-gray-300 text-sm font-semibold uppercase tracking-wider">
               Slides
             </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {slides.map((slide, index) => (
               <div
                 key={slide._id}
                 onClick={() => handleSwitchSlide(slide._id)}
-                className={`w-full px-4 py-3 rounded-lg transition-colors flex items-center justify-between cursor-pointer group ${
-                  currentSlideId === slide._id
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-zinc-700"
-                }`}
+                className={`w-full px-4 py-3 rounded-xl transition-all flex items-center justify-between cursor-pointer group ${currentSlideId === slide._id
+                    ? "bg-orange-500 text-white shadow-lg"
+                    : "text-gray-300 hover:bg-white/10 hover:border-orange-500/50"
+                  }`}
               >
                 <span className="font-medium">Slide {index + 1}</span>
 
                 {/* Delete Button (Visible on hover or active state) */}
                 <button
                   onClick={(e) => handleDeleteSlide(e, slide._id)}
-                  className={`p-1 rounded hover:bg-red-500/20 hover:text-red-400 transition-all ${
-                    currentSlideId === slide._id
+                  className={`p-1 rounded hover:bg-red-500/20 hover:text-red-400 transition-all ${currentSlideId === slide._id
                       ? "text-white/70"
                       : "text-gray-500 opacity-0 group-hover:opacity-100"
-                  }`}
+                    }`}
                   title="Delete Slide"
                 >
                   <svg
@@ -287,18 +317,18 @@ export default function ProjectPage() {
             ))}
           </div>
 
-          <div className="p-4 border-t border-zinc-700">
+          <div className="p-4 border-t border-white/10">
             <button
               onClick={() => projectId && handleCreateNewSlide(projectId)}
-              className="w-full py-2 border-2 border-dashed border-zinc-600 text-zinc-400 rounded-lg hover:border-zinc-400 hover:text-zinc-200 transition-colors"
+              className="w-full py-2 border-2 border-dashed border-white/20 text-gray-300 rounded-xl hover:border-orange-500/50 hover:text-white transition-colors"
             >
               + New Slide
             </button>
           </div>
         </aside>
 
-        {/* 4. Canvas Area */}
-        <div className="flex-1 relative bg-zinc-900">
+        {/* Canvas Area */}
+        <div className="flex-1 relative bg-white/5 backdrop-blur-sm m-4 ml-2 rounded-2xl border border-white/10 overflow-hidden">
           {currentSlide && (
             <Tldraw
               // CRITICAL: Changing key forces remount on slide switch

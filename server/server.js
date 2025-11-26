@@ -5,6 +5,7 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projectRoutes.js';
 import slideRoutes from './routes/slideRoutes.js';
+import calendarRoutes from './routes/calender.js';
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,9 @@ app.use(express.urlencoded({ extended: false })); // Parse URL-encoded bodies
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/slides', slideRoutes);
+app.use('/api/calendar', calendarRoutes);
+
+// Basic route to check server status
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Selfish API is running...',

@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProjectPage from './pages/ProjectPage';
+import CalenderPage from './pages/Calender';
 
 
 function App() {
@@ -28,7 +29,17 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
+        {/* Calendar Page - Protected Route */}
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <CalenderPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Individual Project Page - Protected Route */}
         <Route
           path="/projects/:projectId"

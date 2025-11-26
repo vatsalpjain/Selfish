@@ -82,7 +82,6 @@ const updateProject = async (req, res) => {
 // Delete a project using its ID
 const deleteProject = async (req, res) => {
     try {
-        console.log("Chalra")
         // 1. Find the project by ID and user
         const project = await Project.findOne({ _id: req.params.id, user: req.user._id });
         // 2. If not found, return 404
