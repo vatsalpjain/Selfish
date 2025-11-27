@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProjectPage from './pages/ProjectPage';
 import CalenderPage from './pages/Calender';
+import TodoPage from './pages/TodoPage'; // NEW: Import TodoPage
 
 
 function App() {
@@ -36,6 +37,16 @@ function App() {
           element={
             <ProtectedRoute>
               <CalenderPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Todo Page - Protected Route */}
+        <Route
+          path="/todos"
+          element={
+            <ProtectedRoute>
+              <TodoPage />
             </ProtectedRoute>
           }
         />

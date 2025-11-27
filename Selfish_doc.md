@@ -103,13 +103,13 @@ Individuals struggle with visual project planning and daily tracking:
 
 ## 2. Flow to add features
 
-1. Database Model/Schema
+1. Database Schema (Supabase Dashboard/SQL)
    ↓
 2. Backend API Route
    ↓
-3. Backend Controller Logic
+3. Backend Controller Logic (using supabase client)
    ↓
-4. Test Backend with Postman
+4. Test Backend with Postman/Thunder Client
    ↓
 5. Frontend API Service Function
    ↓

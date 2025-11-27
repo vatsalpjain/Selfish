@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projectRoutes.js';
 import slideRoutes from './routes/slideRoutes.js';
 import calendarRoutes from './routes/calender.js';
+import todoRoutes from './routes/todoRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/slides', slideRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/todos', todoRoutes); 
 
 // Basic route to check server status
 app.get('/', (req, res) => {

@@ -6,6 +6,42 @@ interface ProjectUpdateData {
   canvasData?: unknown; // Tldraw canvas snapshot data (JSON object)
 }
 
+// ============================================
+// TODO INTERFACES
+// ============================================
+// TypeScript interfaces for Todo data structure
+export interface Todo {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in-progress' | 'completed';
+  dueDate?: string; // ISO 8601 datetime string
+  calendarEventId?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Interface for creating a new todo (only required/optional fields)
+export interface CreateTodoData {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'pending' | 'in-progress' | 'completed';
+  dueDate?: string;
+}
+
+// Interface for updating a todo (all fields optional)
+export interface UpdateTodoData {
+  title?: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'pending' | 'in-progress' | 'completed';
+  dueDate?: string;
+}
+
 const API = axios.create({
   baseURL: "http://localhost:5000/api",
 });
@@ -114,5 +150,92 @@ export const updateSlide = async (slideId: string, slideData?: unknown, name?: s
 };
 export const deleteSlide = async (slideId: string) => {
   const response = await API.delete(`/slides/${slideId}`);
+  return response.data;
+};
+
+// ============================================
+// TODO APIs
+// ============================================
+
+/**
+ * Get all todos for the logged-in user
+ * @param status - Optional filter by status ('pending', 'in-progress', 'completed')
+ * @returns Array of todos
+ */
+export const getTodos = async (status?: string): Promise<Todo[]> => {
+  const url = status ? `/todos?status=${status}` : '/todos';
+  const response = await API.get(url);
+  return response.data;
+};
+
+/**
+ * Create a new todo
+ * @param todoData - Todo creation data (title is required)
+ * @returns The created todo
+ */
+export const createTodo = async (todoData: CreateTodoData): Promise<Todo> => {
+  const response = await API.post('/todos', todoData);
+  return response.data;
+};
+
+/**
+ * Get a single todo by ID
+ * @param todoId - The todo ID
+ * @returns The todo object
+ */
+export const getTodoById = async (todoId: string): Promise<Todo> => {
+  const response = await API.get(`/todos/${todoId}`);
+  return response.data;
+};
+
+/**
+ * Update a todo
+ * @param todoId - The todo ID
+ * @param updates - Fields to update (all optional)
+ * @returns The updated todo
+ */
+export const updateTodo = async (todoId: string, updates: UpdateTodoData): Promise<Todo> => {
+  const response = await API.put(`/todos/${todoId}`, updates);
+  return response.data;
+};
+
+/**
+ * Delete a todo
+ * @param todoId - The todo ID
+ * @returns Success message
+ */
+export const deleteTodo = async (todoId: string): Promise<{ message: string }> => {
+  const response = await API.delete(`/todos/${todoId}`);
+  return response.data;
+};
+
+/**
+ * Toggle todo completion status
+ * @param todoId - The todo ID
+ * @returns The updated todo
+ */
+export const completeTodo = async (todoId: string): Promise<Todo> => {
+  const response = await API.put(`/todos/${todoId}/complete`);
+  return response.data;
+};
+
+/**
+ * Get upcoming todos (for dashboard widget)
+ * @param limit - Number of todos to return (default: 2)
+ * @returns Array of upcoming todos
+ */
+export const getUpcomingTodos = async (limit: number = 2): Promise<Todo[]> => {
+  const response = await API.get(`/todos/upcoming?limit=${limit}`);
+  return response.data;
+};
+
+/**
+ * Link a todo to a Google Calendar event
+ * @param todoId - The todo ID
+ * @param eventId - The Google Calendar event ID
+ * @returns The updated todo
+ */
+export const linkTodoToCalendar = async (todoId: string, eventId: string): Promise<Todo> => {
+  const response = await API.put(`/todos/${todoId}/link-calendar`, { eventId });
   return response.data;
 };
