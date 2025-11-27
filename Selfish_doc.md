@@ -144,7 +144,7 @@ Individuals struggle with visual project planning and daily tracking:
 
 ```javascript
 {
-  _id: ObjectId,
+  id: ObjectId,
   userId: ObjectId (ref: User),
   title: String,
   description: String (optional),
@@ -177,7 +177,7 @@ DELETE /api/projects/:id      - Delete project
 
 ```javascript
 {
-  _id: ObjectId,
+  id: ObjectId,
   projectId: ObjectId (ref: Project),
   slideNumber: Number,
   title: String (e.g., "Day 1", "Session 3"),
@@ -445,7 +445,7 @@ useEffect(() => {
 
 ```javascript
 {
-  _id: ObjectId,
+  id: ObjectId,
   username: String (unique, required),
   email: String (unique, required),
   password: String (hashed, required),
@@ -458,7 +458,7 @@ useEffect(() => {
 
 ```javascript
 {
-  _id: ObjectId,
+  id: ObjectId,
   userId: ObjectId (ref: "User"),
   title: String (required),
   description: String,
@@ -474,7 +474,7 @@ useEffect(() => {
 
 ```javascript
 {
-  _id: ObjectId,
+  id: ObjectId,
   projectId: ObjectId (ref: "Project"),
   slideNumber: Number (auto-increment per project),
   title: String (default: "Slide {number}"),

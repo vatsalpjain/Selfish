@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Hide tldraw's native page menu since we have custom slides */
+.tlui-page-menu {
+  display: none !important;
+}
+
+.tlui-page-menu__trigger {
+  display: none !important;
+}

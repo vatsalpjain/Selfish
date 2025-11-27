@@ -172,6 +172,21 @@ export default function ProjectPage() {
       alert("Failed to delete slide");
     }
   };
+  const handleRenameSlide = async (e: React.MouseEvent, slideId: string) => {
+    e.stopPropagation();
+    const slide = slides.find(s => s._id === slideId);
+    if (!slide) return;
+    const newName = window.prompt("Enter new slide name:", slide.name);
+    if (!newName || newName.trim() === "") return;
+    if (newName === slide.name) return;
+    try {
+      await updateSlide(slideId, undefined, newName.trim());
+      setSlides(prev => prev.map(s => s._id === slideId ? { ...s, name: newName.trim() } : s));
+    } catch (error) {
+      console.error("Failed to rename slide:", error);
+      alert("Failed to rename slide");
+    }
+  };
 
   // Show loading state while fetching project
   if (loading) {
@@ -282,37 +297,63 @@ export default function ProjectPage() {
                 key={slide._id}
                 onClick={() => handleSwitchSlide(slide._id)}
                 className={`w-full px-4 py-3 rounded-xl transition-all flex items-center justify-between cursor-pointer group ${currentSlideId === slide._id
-                    ? "bg-orange-500 text-white shadow-lg"
-                    : "text-gray-300 hover:bg-white/10 hover:border-orange-500/50"
+                  ? "bg-orange-500 text-white shadow-lg"
+                  : "text-gray-300 hover:bg-white/10 hover:border-orange-500/50"
                   }`}
               >
-                <span className="font-medium">Slide {index + 1}</span>
-
-                {/* Delete Button (Visible on hover or active state) */}
-                <button
-                  onClick={(e) => handleDeleteSlide(e, slide._id)}
-                  className={`p-1 rounded hover:bg-red-500/20 hover:text-red-400 transition-all ${currentSlideId === slide._id
+                <span className="font-medium">{slide.name}</span>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-1">
+                  {/* Rename Button */}
+                  <button
+                    onClick={(e) => handleRenameSlide(e, slide._id)}
+                    className={`p-1 rounded hover:bg-blue-500/20 hover:text-blue-400 transition-all ${currentSlideId === slide._id
                       ? "text-white/70"
                       : "text-gray-500 opacity-0 group-hover:opacity-100"
-                    }`}
-                  title="Delete Slide"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                      }`}
+                    title="Rename Slide"
                   >
-                    <path d="M3 6h18"></path>
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                  </svg>
-                </button>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
+                      <path d="m15 5 4 4"></path>
+                    </svg>
+                  </button>
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => handleDeleteSlide(e, slide._id)}
+                    className={`p-1 rounded hover:bg-red-500/20 hover:text-red-400 transition-all ${currentSlideId === slide._id
+                      ? "text-white/70"
+                      : "text-gray-500 opacity-0 group-hover:opacity-100"
+                      }`}
+                    title="Delete Slide"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 6h18"></path>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -336,7 +377,7 @@ export default function ProjectPage() {
               snapshot={getSnapshotFromSlide(currentSlide)}
               onMount={(editor) => {
                 editorRef.current = editor;
-                editor.user.updateUserPreferences({ colorScheme: "dark" });
+                editor.user.updateUserPreferences({ colorScheme: "light" });
               }}
             />
           )}

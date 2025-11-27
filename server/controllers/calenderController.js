@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import CalendarToken from '../models/CalenderToken.js'; 
+import supabase from '../config/supabase.js';
 
 // ============================================
 // Feature 5: Auto-Refresh Token Helper
@@ -10,22 +10,33 @@ import CalendarToken from '../models/CalenderToken.js';
 // every time the access token expires (typically after 1 hour).
 const refreshTokenIfNeeded = async (userId) => {
   try {
-    // Get the stored token data from database
-    const tokenData = await CalendarToken.findOne({ userId });
+    // Get the stored token data from Supabase
+    const { data: tokenData, error } = await supabase
+      .from('calendar_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
     
-    if (!tokenData) {
+    if (error || !tokenData) {
       // No token found - user needs to connect calendar
       return null;
     }
 
     // Check if token is expired or will expire in the next 5 minutes
-    // expiryDate is stored as timestamp in milliseconds
+    // expiry_date is stored as bigint (milliseconds since epoch)
     const now = Date.now();
     const expiryBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
-    const isExpired = tokenData.expiryDate && (tokenData.expiryDate <= now + expiryBuffer);
+    const isExpired = tokenData.expiry_date && (tokenData.expiry_date <= now + expiryBuffer);
 
     if (isExpired) {
       console.log('Access token expired or expiring soon, refreshing...');
+      
+      // Check if refresh token exists
+      if (!tokenData.refresh_token) {
+        console.error('Error refreshing token: No refresh token is set.');
+        console.log('User needs to reconnect Google Calendar to obtain a new refresh token.');
+        return null;
+      }
       
       // Set up OAuth client with existing credentials
       const oauth2Client = new google.auth.OAuth2(
@@ -36,27 +47,50 @@ const refreshTokenIfNeeded = async (userId) => {
 
       // Use the refresh token to get new access token
       oauth2Client.setCredentials({
-        refresh_token: tokenData.refreshToken
+        refresh_token: tokenData.refresh_token
       });
 
       // Request new access token from Google
       const { credentials } = await oauth2Client.refreshAccessToken();
       
-      // Update database with new access token and expiry
-      tokenData.accessToken = credentials.access_token;
-      tokenData.expiryDate = credentials.expiry_date;
-      
+      const updateData = {
+        access_token: credentials.access_token,
+        expiry_date: credentials.expiry_date  // Store as bigint (milliseconds)
+      };
+
       // If Google provides a new refresh token, update it too
       if (credentials.refresh_token) {
-        tokenData.refreshToken = credentials.refresh_token;
+        updateData.refresh_token = credentials.refresh_token;
       }
+
+      const { data: updatedToken, error: updateError } = await supabase
+        .from('calendar_tokens')
+        .update(updateData)
+        .eq('user_id', userId)
+        .select()
+        .single();
       
-      await tokenData.save();
+      if (updateError) {
+        console.error('Failed to update token:', updateError);
+        return null;
+      }
+
       console.log('Token refreshed successfully');
+      
+      // Return updated token data
+      return {
+        accessToken: updatedToken.access_token,
+        refreshToken: updatedToken.refresh_token,
+        expiryDate: updatedToken.expiry_date  // Already bigint
+      };
     }
 
-    // Return the valid (possibly refreshed) token data
-    return tokenData;
+    // Return the valid (not expired) token data
+    return {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiryDate: tokenData.expiry_date  // Already bigint
+    };
   } catch (error) {
     console.error('Error refreshing token:', error.message);
     // If refresh fails, the refresh token might be invalid/revoked
@@ -81,7 +115,7 @@ export const getGoogleAuthUrl = (req, res) => {
     const url = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: ['https://www.googleapis.com/auth/calendar.events'],
-      state: req.user._id.toString()
+      state: req.user.id.toString()
     });
     
     res.json({ url });
@@ -109,18 +143,26 @@ export const handleGoogleCallback = async (req, res) => {
     
     const { tokens } = await oauth2Client.getToken(code);
     
-    await CalendarToken.findOneAndUpdate(
-      { userId: state },
-      { 
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiryDate: tokens.expiry_date
-      },
-      { upsert: true, new: true }
-    );
+    // Upsert token data in Supabase
+    const { error } = await supabase
+      .from('calendar_tokens')
+      .upsert([{
+        user_id: state,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expiry_date: tokens.expiry_date  // Store as bigint (milliseconds)
+      }], {
+        onConflict: 'user_id'
+      });
+    
+    if (error) {
+      console.error('Failed to save calendar token:', error);
+      return res.redirect('http://localhost:5173/dashboard?calendar=error');
+    }
     
     res.redirect('http://localhost:5173/dashboard?calendar=connected');
   } catch (error) {
+    console.error('OAuth callback error:', error);
     res.redirect('http://localhost:5173/dashboard?calendar=error');
   }
 };
@@ -132,7 +174,7 @@ export const getCalendarEvents = async (req, res) => {
   try {
     // Feature 5: Auto-refresh token before fetching events
     // This checks if token is expired and refreshes it automatically
-    const tokenData = await refreshTokenIfNeeded(req.user._id);
+    const tokenData = await refreshTokenIfNeeded(req.user.id);
     
     if (!tokenData) {
       // Token refresh failed or no token exists
@@ -177,6 +219,7 @@ export const getCalendarEvents = async (req, res) => {
       events: response.data.items
     });
   } catch (error) {
+    console.error('Get events error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -186,11 +229,15 @@ export const getCalendarEvents = async (req, res) => {
 // @access  Protected
 export const getConnectionStatus = async (req, res) => {
   try {
-    const tokenData = await CalendarToken.findOne({ userId: req.user._id });
+    const { data: tokenData, error } = await supabase
+      .from('calendar_tokens')
+      .select('access_token')
+      .eq('user_id', req.user.id)
+      .single();
     
     res.json({
-      connected: !!tokenData,
-      hasToken: !!tokenData?.accessToken
+      connected: !error && !!tokenData,
+      hasToken: !!tokenData?.access_token
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -202,7 +249,15 @@ export const getConnectionStatus = async (req, res) => {
 // @access  Protected
 export const disconnectCalendar = async (req, res) => {
   try {
-    await CalendarToken.findOneAndDelete({ userId: req.user._id });
+    const { error } = await supabase
+      .from('calendar_tokens')
+      .delete()
+      .eq('user_id', req.user.id);
+    
+    if (error) {
+      console.error('Disconnect error:', error);
+      return res.status(500).json({ error: error.message });
+    }
     
     res.json({ message: 'Calendar disconnected successfully' });
   } catch (error) {
@@ -219,7 +274,7 @@ export const addEvent = async (req, res) => {
     const { title, start, end } = req.body;
     
     // Feature 5: Auto-refresh token before creating event
-    const tokenData = await refreshTokenIfNeeded(req.user._id);
+    const tokenData = await refreshTokenIfNeeded(req.user.id);
     
     if (!tokenData) {
       return res.status(401).json({ 
@@ -262,6 +317,7 @@ export const addEvent = async (req, res) => {
       event: event.data
     });
   } catch (error) {
+    console.error('Add event error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -275,7 +331,7 @@ export const updateEvent = async (req, res) => {
     const { eventId, title, start, end } = req.body;
     
     // Feature 5: Auto-refresh token before updating event
-    const tokenData = await refreshTokenIfNeeded(req.user._id);
+    const tokenData = await refreshTokenIfNeeded(req.user.id);
     
     if (!tokenData) {
       return res.status(401).json({ 
@@ -319,6 +375,7 @@ export const updateEvent = async (req, res) => {
       event: event.data
     });
   } catch (error) {
+    console.error('Update event error:', error);
     res.status(500).json({ error: error.message });
   }
 }
@@ -332,7 +389,7 @@ export const deleteEvent = async (req, res) => {
     const { eventId } = req.body;
     
     // Feature 5: Auto-refresh token before deleting event
-    const tokenData = await refreshTokenIfNeeded(req.user._id);
+    const tokenData = await refreshTokenIfNeeded(req.user.id);
     
     if (!tokenData) {
       return res.status(401).json({ 
@@ -365,7 +422,7 @@ export const deleteEvent = async (req, res) => {
       message: 'Event deleted successfully'
     });
   } catch (error) {
+    console.error('Delete event error:', error);
     res.status(500).json({ error: error.message });
   }
 }
-

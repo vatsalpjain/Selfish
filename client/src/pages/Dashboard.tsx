@@ -6,7 +6,7 @@ import MiniCalendar from "../components/MiniCalender";
 
 // Define the shape of a Project object for TypeScript type safety
 interface Project {
-  _id: string;
+  id: string;
   title: string;
   userId: string;
   createdAt: string;
@@ -53,7 +53,7 @@ export default function Dashboard() {
     if (!confirm("Are you sure you want to delete this project?")) return;
     try {
       await deleteProject(projectId);
-      setProjects(projects.filter((p) => p._id !== projectId));
+      setProjects(projects.filter((p) => p.id !== projectId));
     } catch (error) {
       console.error("Failed to delete project:", error);
     }
@@ -182,11 +182,11 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
                   {projects.map((project) => (
                     <div
-                      key={project._id}
+                      key={project.id}
                       className="relative group"
                     >
                       <Link
-                        to={`/projects/${project._id}`}
+                        to={`/projects/${project.id}`}
                         className="block p-8 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-orange-500/50 transition-all"
                       >
                         <h4 className="text-lg font-semibold text-white">
@@ -197,7 +197,7 @@ export default function Dashboard() {
                         </p>
                       </Link>
                       <button
-                        onClick={(e) => handleDeleteProject(project._id, e)}
+                        onClick={(e) => handleDeleteProject(project.id, e)}
                         className="absolute top-3 right-3 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Delete project"
                       >

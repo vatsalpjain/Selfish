@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -19,7 +20,7 @@
     "googleapis": "^166.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.0.0",
-    "mongoose": "^8.19.4",
+    "mongoose": "^9.0.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0"
   },

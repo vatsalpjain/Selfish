@@ -1,17 +1,8 @@
-import {
-  createContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
-import {
-  login as apiLogin,
-  register as apiRegister,
-  getMe,
-} from "../services/api.ts";
+import { createContext, useState, useEffect, type ReactNode } from "react";
+import { login as apiLogin, register as apiRegister, getMe } from "../services/api";
 
 interface User {
-  _id: string;
+  id: string;
   username: string;
   email: string;
 }
@@ -20,11 +11,7 @@ export interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (
-    username: string,
-    email: string,
-    password: string
-  ) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -37,69 +24,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // Check for existing token on app load
     const checkAuth = async () => {
-      const storedToken = localStorage.getItem("token");
-      if (storedToken) {
+      const savedToken = localStorage.getItem("token");
+      if (savedToken) {
         try {
-          setToken(storedToken);
-          const userdata = await getMe();
-          setUser(userdata);
+          // Verify token by fetching user data
+          const userData = await getMe();
+          setToken(savedToken);
+          setUser(userData);
         } catch (error) {
-          console.error("Failed to fetch user data", error);
-          setToken(null);
-          setUser(null);
+          // Token invalid, clear it
           localStorage.removeItem("token");
         }
       }
-
       setLoading(false);
     };
     checkAuth();
   }, []);
 
+  // Login Function
   const login = async (email: string, password: string) => {
-    try {
-      const data = await apiLogin(email, password);
-      localStorage.setItem("token", data.token);
-      setToken(data.token);
-      setUser({
-        _id: data._id,
-        username: data.username,
-        email: data.email,
-      });
-    } catch (error: unknown) {
-      const message = error && typeof error === 'object' && 'response' in error 
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message 
-        : "Login  failed";
-      throw new Error(message || "Registration failed");
-    }
+    const data = await apiLogin(email, password);
+    setToken(data.token);
+    setUser({
+      id: data.id,
+      username: data.username,
+      email: data.email
+    });
+    localStorage.setItem("token", data.token);
   };
 
-  const register = async (
-    username: string,
-    email: string,
-    password: string
-  ) => {
-    try {
-      const data = await apiRegister(username, email, password);
-      localStorage.setItem("token", data.token);
-      setToken(data.token);
-      setUser({
-        _id: data._id,
-        username: data.username,
-        email: data.email,
-      });
-    } catch (error: unknown) {
-      const message = error && typeof error === 'object' && 'response' in error 
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message 
-        : "Registration failed";
-      throw new Error(message || "Registration failed");
-    }
+  // Register Function
+  const register = async (username: string, email: string, password: string) => {
+    const data = await apiRegister(username, email, password);
+    setToken(data.token);
+    setUser({
+      id: data.id,
+      username: data.username,
+      email: data.email
+    });
+    localStorage.setItem("token", data.token);
   };
 
   const logout = () => {
-    setUser(null);
     setToken(null);
+    setUser(null);
     localStorage.removeItem("token");
   };
 

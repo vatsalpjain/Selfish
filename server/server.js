@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import connectDB from './config/db.js'; 
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projectRoutes.js';
 import slideRoutes from './routes/slideRoutes.js';
@@ -9,9 +8,6 @@ import calendarRoutes from './routes/calender.js';
 
 // Load environment variables
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 // Initialize Express app
 const app = express();
