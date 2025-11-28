@@ -16,7 +16,7 @@ Think less todo-list, more creative workspace.
 - **Project Slides** - Multiple canvas states per project for iterative development
 - **Smart Calendar** - Google Calendar integration with auto-refresh tokens and event management
 - **Visual Planning** - See connections between tasks, ideas, and goals
-- **Auto-Save** - All canvas state persisted to MongoDB in real-time
+- **Auto-Save** - All canvas state persisted to Supabase in real-time
 - **Dark Mode** - Function Health-inspired glassmorphism design
 
 ---
@@ -41,9 +41,9 @@ Think less todo-list, more creative workspace.
                │
                ▼
 ┌─────────────────────────────────────────┐
-│         Database (MongoDB Atlas)        │
+│           Database (Supabase)           │
 │  • Users • Projects • Canvas Slides     │
-│  • Calendar Tokens                      │
+│  • Calendar Tokens • Todos              │
 └─────────────────────────────────────────┘
 ```
 
@@ -63,14 +63,14 @@ Think less todo-list, more creative workspace.
 ### Backend
 - **Node.js 18+** - Runtime
 - **Express** - Web framework
-- **Mongoose** - MongoDB ODM
+- **@supabase/supabase-js** - Supabase client
 - **JWT** - Authentication
 - **googleapis** - Google Calendar API
 - **bcryptjs** - Password hashing
 
 ### Database
-- **MongoDB Atlas** - Cloud database
-- Collections: `users`, `projects`, `canvas_slides`, `calendar_tokens`
+- **Supabase** - PostgreSQL database
+- Tables: `users`, `projects`, `canvas_slides`, `calendar_tokens`, `todos`
 
 ---
 
@@ -91,7 +91,7 @@ Think less todo-list, more creative workspace.
 
 ### Prerequisites
 - Node.js 18+
-- MongoDB Atlas account
+- Supabase account
 - Google Cloud Console project (for Calendar API)
 
 ### Environment Variables
@@ -99,7 +99,8 @@ Think less todo-list, more creative workspace.
 **Backend** (`.env` in `/server`)
 ```env
 PORT=5000
-MONGO_URI=your_mongodb_connection_string
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_supabase_service_key
 JWT_SECRET=your_jwt_secret
 NODE_ENV=development
 GOOGLE_CLIENT_ID=your_google_clientid
@@ -152,7 +153,7 @@ VITE_API_URL=http://localhost:5000
 - **Infinite 2D space** for visual planning
 - **Multiple tools**: Pen, shapes, text, sticky notes
 - **Slide system**: Create multiple canvas states per project
-- **Auto-save**: Real-time persistence to MongoDB
+- **Auto-save**: Real-time persistence to Supabase
 - **JSON serialization**: Efficient storage of tldraw state
 
 ### Calendar Management
@@ -197,7 +198,7 @@ selfish/
 ├── server/                # Backend Node.js application
 │   ├── controllers/       # Request handlers
 │   ├── middleware/        # Custom middleware
-│   ├── models/           # Mongoose schemas
+│   ├── config/           # Supabase configuration
 │   ├── routes/           # API routes
 │   ├── server.js         # Entry point
 │   └── package.json

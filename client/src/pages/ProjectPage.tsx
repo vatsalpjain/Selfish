@@ -20,6 +20,7 @@ interface Slide {
   project: string;
   name: string;
   slideData?: string; // JSON string from backend
+  screenshotUrl?: string; // URL of canvas screenshot
   createdAt: string;
 }
 // Define the shape of a Project object
@@ -121,18 +122,50 @@ export default function ProjectPage() {
     setCurrentSlideId(targetSlideId);
   };
 
+  // Helper function to convert Blob to base64
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   // Handle saving the current canvas state to the backend
   const handleSave = async () => {
     if (!currentSlideId || !editorRef.current) return;
 
     try {
+      // 1. Get canvas JSON snapshot
       const { document, session } = getSnapshot(editorRef.current.store);
       const snapshotString = JSON.stringify({ document, session });
-      // Call API to update specific slide
-      await updateSlide(currentSlideId, snapshotString);
+
+      // 2. Capture canvas screenshot
+      let screenshotData: string | undefined;
+      try {
+        const result = await editorRef.current.toImage(
+          Array.from(editorRef.current.getCurrentPageShapeIds()),
+          {
+            format: 'png',
+            background: true,
+            scale: 1
+          }
+        );
+
+        if (result && result.blob) {
+          screenshotData = await blobToBase64(result.blob);
+        }
+      } catch (imgErr) {
+        console.warn('Screenshot capture failed, continuing with save:', imgErr);
+      }
+
+      // 3. Call API to update specific slide
+      await updateSlide(currentSlideId, snapshotString, undefined, screenshotData);
       setSaveMessage("Saved");
       setTimeout(() => setSaveMessage(""), 2000);
-      // Update local state to match DB (prevents data loss on switch)
+
+      // 4. Update local state to match DB (prevents data loss on switch)
       setSlides((prev) =>
         prev.map((s) =>
           s._id === currentSlideId ? { ...s, slideData: snapshotString } : s

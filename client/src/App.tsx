@@ -7,7 +7,8 @@ import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProjectPage from './pages/ProjectPage';
 import CalenderPage from './pages/Calender';
-import TodoPage from './pages/TodoPage'; // NEW: Import TodoPage
+import TodoPage from './pages/TodoPage';
+import ChatPage from './pages/ChatPage';
 
 
 function App() {
@@ -57,6 +58,16 @@ function App() {
           element={
             <ProtectedRoute>
               <ProjectPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* AI Chat Page - Protected Route */}
+        <Route
+          path="/ai-chat"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
             </ProtectedRoute>
           }
         />

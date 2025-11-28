@@ -23,7 +23,7 @@ Individuals struggle with visual project planning and daily tracking:
 - Provides infinite canvas workspace (Figma-like) for each project
 - Supports multiple "slides" per project for day-by-day progression
 - Combines freehand drawing, sticky notes, shapes, and text
-- Persists all canvas state to MongoDB for seamless recovery
+- Persists all canvas state to Supabase for seamless recovery
 - Dark, modern UI with glassmorphism design (Function Health inspired)
 
 ### Key Value Proposition
@@ -63,9 +63,9 @@ Individuals struggle with visual project planning and daily tracking:
            └──────────┬───────────┘
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│              DATABASE (MongoDB Atlas)                   │
+│                DATABASE (Supabase)                      │
 │  • users           • projects        • canvas_slides    │
-│  • sessions        • project_metadata                   │
+│  • calendar_tokens • todos                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -86,18 +86,18 @@ Individuals struggle with visual project planning and daily tracking:
 - ES6 Modules
 - JWT (authentication)
 - bcryptjs (password hashing)
-- Mongoose (MongoDB ODM)
+- @supabase/supabase-js (Supabase client)
 
 **Database:**
 
-- MongoDB Atlas (cloud)
-- Collections: users, projects, canvas_slides
+- Supabase PostgreSQL (cloud)
+- Tables: users, projects, canvas_slides, calendar_tokens, todos
 
 **Deployment:**
 
 - Frontend: Vercel (free tier)
 - Backend: Render (free tier)
-- Database: MongoDB Atlas M0 (free tier)
+- Database: Supabase (free tier)
 
 ---
 
@@ -133,7 +133,7 @@ Individuals struggle with visual project planning and daily tracking:
 
 - `context/AuthContext.tsx` - Global auth state
 - `middleware/auth.js` - JWT verification
-- `models/User.js` - User schema with password hashing
+- `config/supabase.js` - Supabase client configuration
 - `pages/Login.tsx`, `pages/Register.tsx` - Auth UI
 
 ### 3.2 Project Management (Chalra hai abhi)
@@ -339,17 +339,17 @@ useEffect(() => {
 1. [X] Install and configure tldraw library
 2. [X] Create ProjectCanvas page component
 3. [X] Implement canvas state save/load
-4. [ ] Add slide navigation sidebar
-5. [ ] Implement "New Slide" functionality
-6. [ ] Add auto-save (every 30 seconds)
-7. [ ] Add manual save button with feedback
-8. [ ] Style canvas UI with dark theme
-9. [ ] Test: Draw, save, reload, verify persistence
+4. [X] Add slide navigation sidebar
+5. [X] Implement "New Slide" functionality
+6. [X] Add auto-save (every 30 seconds)
+7. [X] Add manual save button with feedback
+8. [X] Style canvas UI with dark theme
+9. [X] Test: Draw, save, reload, verify persistence
 
 **Success Criteria:**
 
 - Can draw on canvas and see shapes
-- Canvas state saves to MongoDB
+- Canvas state saves to Supabase
 - Reloading page restores canvas
 - Multiple slides per project work
 
@@ -363,12 +363,12 @@ useEffect(() => {
 
 **Tasks:**
 
-1. [ ] Backend: Create Slide model and routes
-2. [ ] Backend: Implement slide CRUD
-3. [ ] Frontend: Slide navigation component
-4. [ ] Frontend: "Previous/Next Slide" buttons
-5. [ ] Frontend: Slide thumbnail generation
-6. [ ] Frontend: Slide deletion with confirmation
+1. [X] Backend: Create Slide model and routes
+2. [X] Backend: Implement slide CRUD
+3. [X] Frontend: Slide navigation component
+4. [X] Frontend: "Previous/Next Slide" buttons
+5. [X] Frontend: Slide thumbnail generation
+6. [X] Frontend: Slide deletion with confirmation
 7. [ ] Frontend: Slide reordering (drag-and-drop)
 8. [ ] Test: Create 5 slides, navigate, delete
 
@@ -574,12 +574,13 @@ PUT    /api/slides/:slideId/reorder             - Reorder slides
 - **Mental Model**: Matches notebook/presentation metaphor
 - **History**: Can see project evolution over time
 
-### Why MongoDB Over SQL?
+### Why Supabase (PostgreSQL)?
 
-- **Schema Flexibility**: Canvas state is JSON (perfect for MongoDB)
-- **Easy Setup**: Atlas free tier is generous
-- **Document Model**: Projects and slides are natural documents
-- **Learning Value**: NoSQL experience on resume
+- **Real-time Features**: Built-in real-time subscriptions (future enhancement)
+- **Easy Setup**: Generous free tier with great developer experience
+- **JSONB Support**: Perfect for storing canvas state as JSON
+- **Built-in Auth**: Can leverage Supabase Auth if needed in future
+- **Learning Value**: Modern BaaS platform experience
 
 ### Why Dark Theme Default?
 
@@ -650,7 +651,7 @@ git merge feature/project-crud
 - **Page Load Time**: < 2s for dashboard
 - **Canvas Load Time**: < 1s to render saved state
 - **API Latency**: P95 < 300ms
-- **Database Queries**: Optimized with indexes
+- **Database Queries**: Optimized with Supabase indexes
 
 ### User Experience Metrics
 
@@ -662,9 +663,9 @@ git merge feature/project-crud
 ### Portfolio Impact
 
 - "Built visual project tracker with **infinite canvas** using React + tldraw"
-- "Implemented **real-time canvas persistence** to MongoDB"
+- "Implemented **real-time canvas persistence** to Supabase PostgreSQL"
 - "Designed **glassmorphism UI** with Tailwind CSS"
-- "Deployed full-stack MERN app to **Vercel + Render** (free tier)"
+- "Deployed full-stack app with **Supabase + Express** to Vercel + Render (free tier)"
 
 ---
 
@@ -693,7 +694,7 @@ git merge feature/project-crud
 | Risk                                      | Impact | Mitigation                                          |
 | ----------------------------------------- | ------ | --------------------------------------------------- |
 | tldraw learning curve                     | Medium | Follow official docs, use examples, join Discord    |
-| Large canvas states (MongoDB size limits) | Medium | Compress JSON, paginate slides, lazy load           |
+| Large canvas states (Supabase row limits) | Medium | Compress JSON, paginate slides, lazy load           |
 | Free tier limitations                     | Low    | Monitor usage, optimize queries, cache aggressively |
 | Deployment complexity                     | Low    | Use Docker for local dev, document deployment steps |
 
@@ -720,7 +721,7 @@ git merge feature/project-crud
 ### Documentation
 
 - [tldraw Docs](https://tldraw.dev)
-- [MongoDB Mongoose Guide](https://mongoosejs.com/docs/guide.html)
+- [Supabase Docs](https://supabase.com/docs)
 - [React Router v6](https://reactrouter.com)
 - [Tailwind CSS](https://tailwindcss.com/docs)
 

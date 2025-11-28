@@ -58,6 +58,7 @@ const getSlidesByProjectId = async (req, res) => {
             project: s.project_id,
             name: s.name,
             slideData: JSON.stringify(s.slide_data),
+            screenshotUrl: s.screenshot_url || null,
             createdAt: s.created_at
         }));
 
@@ -72,7 +73,7 @@ const getSlidesByProjectId = async (req, res) => {
 // @route   PUT /api/slides/:slideId
 const updateSlide = async (req, res) => {
     const { slideId } = req.params;
-    const { slideData, name } = req.body; 
+    const { slideData, name, screenshotData } = req.body; 
     
     try {
         const updates = {};
@@ -80,6 +81,44 @@ const updateSlide = async (req, res) => {
         // If saving canvas, parse the string back to JSON for storage
         if (slideData) updates.slide_data = JSON.parse(slideData);
         if (name) updates.name = name;
+
+        // Handle screenshot upload if provided
+        if (screenshotData) {
+            try {
+                // 1. Extract base64 data (remove 'data:image/png;base64,' prefix)
+                const base64Data = screenshotData.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                // 2. Generate unique filename
+                const timestamp = Date.now();
+                const filename = `slide-${slideId}-${timestamp}.png`;
+                const filePath = `screenshots/${filename}`;
+                
+                // 3. Upload to Supabase Storage
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('slides-screenshots')
+                    .upload(filePath, buffer, {
+                        contentType: 'image/png',
+                        upsert: true // Replace if exists
+                    });
+                
+                if (uploadError) {
+                    console.error('Screenshot upload error:', uploadError);
+                } else {
+                    // 4. Get public URL
+                    const { data: urlData } = supabase.storage
+                        .from('slides-screenshots')
+                        .getPublicUrl(filePath);
+                    
+                    if (urlData?.publicUrl) {
+                        updates.screenshot_url = urlData.publicUrl;
+                    }
+                }
+            } catch (screenshotError) {
+                console.error('Error processing screenshot:', screenshotError);
+                // Continue with slide update even if screenshot fails
+            }
+        }
 
         const { data, error } = await supabase
             .from('slides')
@@ -95,6 +134,7 @@ const updateSlide = async (req, res) => {
             project: data.project_id,
             name: data.name,
             slideData: JSON.stringify(data.slide_data),
+            screenshotUrl: data.screenshot_url || null,
             createdAt: data.created_at
         };
 

@@ -6,6 +6,7 @@ import projectRoutes from './routes/projectRoutes.js';
 import slideRoutes from './routes/slideRoutes.js';
 import calendarRoutes from './routes/calender.js';
 import todoRoutes from './routes/todoRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -15,8 +16,8 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: false })); // Parse URL-encoded bodies
+app.use(express.json({ limit: '10mb' })); // Increased limit for canvas screenshots
+app.use(express.urlencoded({ extended: false, limit: '10mb' })); // Parse URL-encoded bodies
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -24,6 +25,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/slides', slideRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/todos', todoRoutes); 
+app.use('/api/ai', aiRoutes); // NEW: AI chatbot routes
 
 // Basic route to check server status
 app.get('/', (req, res) => {

@@ -144,8 +144,8 @@ export const getSlidesByProjectId = async (projectId: string) => {
   const response = await API.get(`/slides/project/${projectId}`);
   return response.data;
 };
-export const updateSlide = async (slideId: string, slideData?: unknown, name?: string) => {
-  const response = await API.put(`/slides/${slideId}`, { slideData, name });
+export const updateSlide = async (slideId: string, slideData?: unknown, name?: string, screenshotData?: string) => {
+  const response = await API.put(`/slides/${slideId}`, { slideData, name, screenshotData });
   return response.data;
 };
 export const deleteSlide = async (slideId: string) => {
@@ -239,3 +239,42 @@ export const linkTodoToCalendar = async (todoId: string, eventId: string): Promi
   const response = await API.put(`/todos/${todoId}/link-calendar`, { eventId });
   return response.data;
 };
+
+// ============================================
+// AI CHATBOT APIs
+// ============================================
+
+/**
+ * Index user data for RAG
+ * Call this when user first enables AI or after major updates
+ */
+export const indexUserData = async (): Promise<{ success: boolean; message: string; indexed_count: number }> => {
+  const response = await API.post('/ai/index');
+  return response.data;
+};
+
+/**
+ * Check AI service health
+ */
+export const checkAIHealth = async (): Promise<{ success: boolean; ai_service: any }> => {
+  const response = await API.get('/ai/health');
+  return response.data;
+};
+
+/**
+ * Get chat history
+ */
+export const getChatHistory = async (limit = 50): Promise<{ success: boolean; messages: any[] }> => {
+  const response = await API.get(`/ai/history?limit=${limit}`);
+  return response.data;
+};
+
+/**
+ * Save chat message
+ */
+export const saveChatMessage = async (role: string, content: string): Promise<{ success: boolean }> => {
+  const response = await API.post('/ai/history', { role, content });
+  return response.data;
+};
+
+
