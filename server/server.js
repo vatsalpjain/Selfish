@@ -25,7 +25,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/slides', slideRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/todos', todoRoutes); 
-app.use('/api/ai', aiRoutes); // NEW: AI chatbot routes
+app.use('/api/ai', aiRoutes);
 
 // Basic route to check server status
 app.get('/', (req, res) => {

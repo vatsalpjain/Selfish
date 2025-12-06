@@ -90,8 +90,7 @@ const updateSlide = async (req, res) => {
                 const buffer = Buffer.from(base64Data, 'base64');
                 
                 // 2. Generate unique filename
-                const timestamp = Date.now();
-                const filename = `slide-${slideId}-${timestamp}.png`;
+                const filename = `slide-${slideId}.png`;
                 const filePath = `screenshots/${filename}`;
                 
                 // 3. Upload to Supabase Storage
@@ -101,7 +100,6 @@ const updateSlide = async (req, res) => {
                         contentType: 'image/png',
                         upsert: true // Replace if exists
                     });
-                
                 if (uploadError) {
                     console.error('Screenshot upload error:', uploadError);
                 } else {
@@ -150,6 +148,13 @@ const updateSlide = async (req, res) => {
 const deleteSlide = async (req, res) => {
     const { slideId } = req.params;
     try {
+        // Delete screenshot if it exists
+        const filePath = `screenshots/slide-${slideId}.png`;
+        await supabase.storage
+            .from('slides-screenshots')
+            .remove([filePath]);  
+        
+        // Delete slide from database
         const { error } = await supabase
             .from('slides')
             .delete()

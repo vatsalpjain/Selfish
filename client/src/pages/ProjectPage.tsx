@@ -84,7 +84,7 @@ export default function ProjectPage() {
   //get current slide data
   const getCurrentSlide = () => slides.find((s) => s._id === currentSlideId);
 
-  // Safely parse the JSON string from MongoDB into a Tldraw snapshot object
+  // Safely parse the JSON string from Supabase into a Tldraw snapshot object
   const getSnapshotFromSlide = (slide: Slide | undefined) => {
     if (!slide || !slide.slideData) return undefined;
     try {

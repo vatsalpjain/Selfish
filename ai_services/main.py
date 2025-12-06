@@ -122,7 +122,7 @@ async def chat(request: ChatRequest):
         )
         
         # Visual keywords
-        visual_keywords = ['canvas', 'drew', 'draw', 'diagram', 'visual', 'slide', 'sketch', 'what', 'show', 'content', 'there', 'surakhshaNET']
+        visual_keywords = ["about", "summary", "overview", "visual", "chart", "graph", "slide", "presentation", "content" , "data" , "report" , "statistics"]
         has_visual_keyword = any(kw in request.query.lower() for kw in visual_keywords)
         
         # Trigger visual if keywords OR if we found slides
