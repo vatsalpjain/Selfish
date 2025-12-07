@@ -197,7 +197,7 @@ export const healthCheck = async (req, res) => {
  */
 export const getChatHistory = async (req, res) => {
     try {
-        const { supabase } = await import('../config/supabase.js');
+        const supabase = (await import('../config/supabase.js')).default;
         const userId = req.user.id;
         const { limit = 50, session_id } = req.query;
 
@@ -241,7 +241,7 @@ export const getChatHistory = async (req, res) => {
  */
 export const saveChatMessage = async (req, res) => {
     try {
-        const { supabase } = await import('../config/supabase.js');
+        const supabase = (await import('../config/supabase.js')).default;
         const userId = req.user.id;
         const { role, content, session_id } = req.body;
 

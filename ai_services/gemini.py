@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from typing import AsyncGenerator, List, Dict, Optional
 import base64
+from typing import Tuple
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ class GeminiChatService:
     def __init__(self):
         """Initialize Gemini client"""
         self.client = self._initialize_client()
-        self.model_name = "gemini-2.5-flash"  
+        self.model_name = "gemini-2.0-flash"  
         
     def _initialize_client(self) -> genai.Client:
         """Initialize Gemini client with API key"""
@@ -34,80 +35,7 @@ class GeminiChatService:
         except Exception as e:
             print(f"Error initializing Gemini client: {e}")
             raise RuntimeError(f"Failed to initialize Gemini: {e}")
-    
-    
-    def generate_answer(self, query: str, context: str) -> str:
-        """
-        Generate answer using RAG context (non-streaming)
-        
-        Args:
-            query: User's question
-            context: Retrieved context from RAG
-            
-        Returns:
-            Generated answer as string
-        """
-        if not self.client:
-            raise RuntimeError("Gemini client not initialized")
-        
-        # Build prompt with context
-        system_prompt = """You are Selfish AI, a helpful assistant for the Selfish project management app.
-
-You have access to the user's projects, canvas slides, todos, and calendar data.
-Use the provided context to answer questions accurately and helpfully.
-
-Key capabilities:
-- Understand user's current projects and their progress
-- Provide insights on todos and deadlines
-- Analyze canvas drawings and visual planning
-- Help with project organization and planning
-
-Be concise, friendly, and actionable in your responses."""
-
-        prompt = f"""{system_prompt}
-
-CONTEXT FROM USER'S DATA:
-{context}
-
-USER QUESTION: {query}
-
-ANSWER:"""
-        
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    top_p=0.95,
-                    top_k=40,
-                    max_output_tokens=2048,
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_NONE"
-                        ),
-                    ]
-                )
-            )
-            return response.text
-        except Exception as e:
-            print(f"Error generating answer: {e}")
-            return f"I apologize, but I encountered an error: {str(e)}"
-    
-    
+      
     async def stream_chat_response(
         self, 
         query: str, 
@@ -201,7 +129,7 @@ Instructions:
                 model=self.model_name,
                 contents=messages,
                 config=types.GenerateContentConfig(
-                    temperature=0.5,
+                    temperature=0.4,
                     top_p=0.95,
                     top_k=40,
                     max_output_tokens=2048,
@@ -217,69 +145,159 @@ Instructions:
             print(f"Error in streaming response: {e}")
             yield f"I encountered an error: {str(e)}"
     
-    
-    async def analyze_canvas_image(
-        self, 
-        image_data: str,
-        query: Optional[str] = None
-    ) -> str:
+
+    async def optimize_query(
+        self,
+        query: str
+    ) -> Tuple[str, bool, bool]:
         """
-        Analyze canvas screenshot using Gemini Vision
+        Optimize user query for RAG and determine if visual context is needed.
         
-        Args:
-            image_data: Base64 encoded image or file path
-            query: Optional specific question about the image
-            
         Returns:
-            Analysis of the canvas/image
+            Tuple of (optimized_query, needs_image)
         """
         if not self.client:
             raise RuntimeError("Gemini client not initialized")
         
         try:
-            # Prepare image
-            if image_data.startswith('data:image'):
-                # Base64 data URL
-                image_data = image_data.split(',')[1]
-            
-            # Decode base64 to bytes
-            image_bytes = base64.b64decode(image_data)
-            
-            # Default query if none provided
-            if not query:
-                query = """Analyze this canvas drawing from a project management tool. 
-Describe what you see:
-- What visual elements are present (shapes, text, drawings)?
-- What seems to be the purpose or goal?
-- Any patterns, workflows, or connections you notice?
-- Suggestions for improvement?"""
-            
-            # Create content with image
-            messages = [
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part(text=query),
-                        types.Part(data=image_bytes, mime_type="image/png")
-                    ]
-                )
-            ]
-            
+            prompt = f"""You are a query analyzer for a project management AI assistant.
+
+TASK 1: Determine if user data context is needed
+Answer YES if the query is about:
+- Projects, todos, tasks, slides, canvas, deadlines
+- User's specific work or data
+- Summaries, lists, or info about their content
+
+Answer NO if the query is:
+- A greeting (hi, hello, how are you)
+- General knowledge question
+- About the AI itself
+- Chitchat or small talk
+
+TASK 2: Optimize the query for semantic search (only if context needed)
+- Extract key concepts and entities
+- Remove filler words
+- Keep project-related terms
+
+TASK 3: Decide if visual context (canvas screenshots) would help
+Answer YES only if query specifically asks about visual content.
+
+OUTPUT FORMAT (strictly follow this):
+NEEDS_CONTEXT: YES or NO
+OPTIMIZED: <optimized search query or "none" if no context needed>
+NEEDS_IMAGE: YES or NO
+
+Examples:
+Query: "How are you?"
+NEEDS_CONTEXT: NO
+OPTIMIZED: none
+NEEDS_IMAGE: NO
+
+Query: "What are my pending tasks?"
+NEEDS_CONTEXT: YES
+OPTIMIZED: todos pending tasks status
+NEEDS_IMAGE: NO
+
+Query: "Show me my brainstorm slides"
+NEEDS_CONTEXT: YES
+OPTIMIZED: brainstorm slides canvas
+NEEDS_IMAGE: YES
+
+User Query: {query}
+"""
             response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=messages,
+                model="gemini-2.0-flash-lite",
+                contents=prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=1024,
+                    temperature=0.1,
+                    max_output_tokens=100,
                 )
             )
             
-            return response.text
+            result = response.text.strip()
+            
+            # Parse response
+            optimized_query = query  # Fallback
+            needs_image = False
+            needs_context = True 
+            
+            for line in result.split('\n'):
+                if line.startswith('NEEDS_CONTEXT:'):
+                    needs_context = 'YES' in line.upper()
+                elif line.startswith('OPTIMIZED:'):
+                    optimized_query = line.replace('OPTIMIZED:', '').strip()
+                    if optimized_query.lower() == 'none':
+                        optimized_query = query
+                elif line.startswith('NEEDS_IMAGE:'):
+                    needs_image = 'YES' in line.upper()
+            print(f"🔄 Query: '{query}' → '{optimized_query}' | 📄 Context: {needs_context} | 🖼️ Image: {needs_image}")
+            return optimized_query, needs_image, needs_context
             
         except Exception as e:
-            print(f"Error analyzing image: {e}")
-            return f"I couldn't analyze the image: {str(e)}"
+            print(f"Error optimizing query: {e}")
+            return query, False, True
     
+    async def generate_slide_description(
+        self,
+        image_data: str
+    ) -> str:
+        """
+        Generate a concise description of a canvas screenshot.
+        Called once when slide is saved, stored in DB for RAG context.
+        
+        Args:
+            image_data: Base64 encoded PNG image
+            
+        Returns:
+            Text description of the visual content
+        """
+        if not self.client:
+            raise RuntimeError("Gemini client not initialized")
+    
+        try:
+            # Strip data URL prefix if present
+            if image_data.startswith('data:image'):
+                image_data = image_data.split(',')[1]
+        
+            image_bytes = base64.b64decode(image_data)
+        
+            prompt = """Analyze this canvas/slide image and provide a concise description.
+Focus on:
+1. What type of content is this? (flowchart, brainstorm, diagram, notes, wireframe, etc.)
+2. What are the main elements or concepts shown?
+3. What relationships or connections exist between elements?
+4. What is the overall purpose or topic?
+Output format:
+TYPE: <content type>
+SUMMARY: <2-3 sentence description of the visual content and its meaning>
+Keep the summary under 100 words. Be specific about what you see."""
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                        types.Part(text=prompt),
+                        types.Part(
+                            inline_data=types.Blob(
+                                mime_type="image/png",
+                                data=image_bytes
+                            )
+                        )
+                    ]
+                )
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=200,
+            )
+        )
+        
+            return response.text.strip()
+        
+        except Exception as e:
+            print(f"Error generating description: {e}")
+            return ""
     
     async def stream_canvas_analysis(
         self,

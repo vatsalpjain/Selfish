@@ -1,4 +1,7 @@
 import supabase from '../config/supabase.js';
+import axios from 'axios'; 
+
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000'; 
 
 // @desc    Create a new slide
 // @route   POST /api/slides
@@ -110,6 +113,27 @@ const updateSlide = async (req, res) => {
                     
                     if (urlData?.publicUrl) {
                         updates.screenshot_url = urlData.publicUrl;
+                    }
+                    // Generate AI description for the slide
+                    try {
+                        const descResponse = await axios.post(
+                            `${AI_SERVICE_URL}/analyze-canvas`,
+                            { 
+                                user_id: req.user?.id || 'unknown',  // From auth middleware
+                                image_data: screenshotData,
+                                generate_description: true 
+                            },
+                            { timeout: 30000 }
+                        );
+                        
+                        if (descResponse.data.success) {
+                            updates.description = descResponse.data.description;
+                            updates.content_type = descResponse.data.content_type;
+                            console.log(`📝 Generated description for slide ${slideId}`);
+                        }
+                    } catch (descError) {
+                        console.warn('Description generation failed, continuing:', descError.message);
+                        // Don't block save if description fails
                     }
                 }
             } catch (screenshotError) {

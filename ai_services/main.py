@@ -50,7 +50,15 @@ class CanvasAnalysisRequest(BaseModel):
     image_data: str
     query: Optional[str] = None
     project_id: Optional[str] = None
-
+    generate_description: bool = False  # If True, returns description for DB storage
+    
+class DescriptionRequest(BaseModel):
+    image_data: str  # Base64 encoded image
+    
+class DescriptionResponse(BaseModel):
+    success: bool
+    description: str
+    content_type: str
 
 class ChatResponse(BaseModel):
     success: bool
@@ -104,32 +112,30 @@ async def index_user_data(request: IndexRequest):
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        # Get context from RAG
-        context_result = rag_service.query_context(
-            query=request.query,
-            user_id=request.user_id,
-            n_results=5
-        )
+        # Pass to small LLM to check if image is needed or not and also get optimized query for RAG 
+        optimized_query, needs_image, needs_context = await gemini_service.optimize_query(request.query)
         
-        context = context_result.get("context", "")
-        if not context:
-            context = "No relevant data found in user's projects."
+        # Only query RAG if context is needed
+        context = ""
+        if needs_context:
+            context_result = rag_service.query_context(
+                query=optimized_query,
+                user_id=request.user_id,
+                n_results=5
+            )
+            context = context_result.get("context", "")
+            if not context:
+                context = "No relevant data found in user's projects."
+            print(f"📄 Found {len(context_result.get('documents', []))} docs")
+        else:
+            context_result = {"documents": []}
+            print("📄 Skipping RAG (no context needed)")
         
-        # Check if we have slide results
-        has_slide_results = any(
-            doc.get("metadata", {}).get("type") == "slide" 
-            for doc in context_result.get("documents", [])
-        )
-        
-        # Visual keywords
-        visual_keywords = ["about", "summary", "overview", "visual", "chart", "graph", "slide", "presentation", "content" , "data" , "report" , "statistics"]
-        has_visual_keyword = any(kw in request.query.lower() for kw in visual_keywords)
-        
-        # Trigger visual if keywords OR if we found slides
-        needs_visual = has_visual_keyword or has_slide_results
+        # Trigger visual if we found slides OR if we need image
+        needs_visual = needs_image
         
         print(f"📊 Query: '{request.query}'")
-        print(f"🔍 Needs visual: {needs_visual} (keywords={has_visual_keyword}, slides={has_slide_results})")
+        print(f"🔍 Needs image: {needs_image}")
         print(f"📄 Found {len(context_result.get('documents', []))} docs")
         
         # Fetch screenshots
@@ -148,42 +154,62 @@ async def chat(request: ChatRequest):
                 if images:
                     print(f"🖼️  Total: {len(images)} screenshot(s)")
                 else:
-                    print(f"⚠️  No screenshots")
+                    print("⚠️  No screenshots")
             except Exception as e:
                 print(f"❌ Error: {e}")
         
         # Stream response
-        if request.stream:
-            async def event_generator():
-                try:
-                    async for chunk in gemini_service.stream_chat_response(
-                        query=request.query,
-                        context=context,
-                        history=request.history,
-                        images=images if images else None
+ 
+        async def event_generator():
+            try:
+                async for chunk in gemini_service.stream_chat_response(
+                    query=request.query,
+                    context=context,
+                    history=request.history,
+                    images=images if images else None
                     ):
                         yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-                    yield f"data: {json.dumps({'done': True})}\n\n"
-                except Exception as e:
-                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
             
-            return StreamingResponse(
+        return StreamingResponse(
                 event_generator(),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
             )
-        else:
-            answer = gemini_service.generate_answer(query=request.query, context=context)
-            return ChatResponse(success=True, answer=answer, context_used=bool(context))
+
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
-# CANVAS ANALYSIS ENDPOINT
+# CANVAS ANALYSIS ENDPOINT - supports both streaming analysis and description generation
 @app.post("/analyze-canvas")
 async def analyze_canvas(request: CanvasAnalysisRequest):
     try:
+        # MODE 1: Generate description for DB storage (non-streaming)
+        if request.generate_description:
+            result = await gemini_service.generate_slide_description(request.image_data)
+            
+            # Parse TYPE and SUMMARY from response
+            content_type = "unknown"
+            description = result
+            
+            for line in result.split('\n'):
+                if line.startswith('TYPE:'):
+                    content_type = line.replace('TYPE:', '').strip().lower()
+                elif line.startswith('SUMMARY:'):
+                    description = line.replace('SUMMARY:', '').strip()
+            
+            print(f"📝 Generated description: {description[:50]}... | Type: {content_type}")
+            return DescriptionResponse(
+                success=True,
+                description=description,
+                content_type=content_type
+            )
+        
+        # MODE 2: Streaming canvas analysis (existing behavior)
         context = ""
         if request.project_id:
             user_data = rag_service.fetch_user_data(request.user_id)

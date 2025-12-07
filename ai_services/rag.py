@@ -178,58 +178,36 @@ class RAGService:
         
         # Process slides
         for slide in user_data.get("slides", []):
-            # Extract text from slide_data JSON if available
-            slide_text = ""
-            slide_data = slide.get("slide_data", {})
-            
-            # Try to extract meaningful text from tldraw shapes
-            if isinstance(slide_data, dict):
-                # Handle tldraw store structure: { document: { store: { "shape:id": { ... } } } }
-                store = slide_data.get("document", {}).get("store", {})
-                if not store and "shapes" in slide_data:
-                    # Fallback for potential legacy/flat structure
-                    store = {f"shape:{i}": s for i, s in enumerate(slide_data.get("shapes", []))}
+            # Prefer AI-generated description (stored when slide was saved)
+            ai_description = slide.get('description', '')
+            content_type = slide.get('content_type', '')
                 
-                for key, shape in store.items():
-                    if isinstance(shape, dict):
-                        # Check if it's a shape record
-                        if shape.get("typeName") == "shape":
-                            # Get text from props
-                            props = shape.get("props", {})
-                            if isinstance(props, dict) and "text" in props:
-                                text_content = props["text"]
-                                if text_content and isinstance(text_content, str):
-                                    slide_text += text_content + " "
-                        
-                        # Also check direct text field (legacy or different shape types)
-                        elif "text" in shape:
-                            slide_text += str(shape["text"]) + " "
-            
             doc_text = f"Slide: {slide.get('name', 'Untitled Slide')}\n"
-            doc_text += f"Project ID: {slide.get('project_id')}\n"
-            if slide_text.strip():
-                doc_text += f"Content: {slide_text.strip()}\n"
-            doc_text += f"Created: {slide.get('created_at', 'Unknown')}"
-            
-            # Filter out None values from metadata
+                
+            if ai_description:
+                # Use the rich AI description
+                if content_type:
+                    doc_text += f"Type: {content_type}\n"
+                doc_text += f"Description: {ai_description}\n"
+            else:
+                # Fallback: just note that visual content exists
+                doc_text += "Content: Visual canvas content (no description available)\n"
+                
+            # Minimal metadata
             metadata = {
                 "type": "slide",
                 "slide_id": str(slide.get("id", "")),
                 "name": str(slide.get("name", "Untitled Slide")),
             }
-            if slide.get("project_id"):
-                metadata["project_id"] = str(slide.get("project_id"))
-            if slide.get("created_at"):
-                metadata["created_at"] = str(slide.get("created_at"))
             if slide.get("screenshot_url"):
                 metadata["screenshot_url"] = str(slide.get("screenshot_url"))
-            
+            metadata["has_description"] = bool(ai_description)
+                
             documents.append({
                 "id": f"slide_{slide.get('id')}",
                 "text": doc_text,
                 "metadata": metadata
             })
-        
         # Process todos
         for todo in user_data.get("todos", []):
             doc_text = f"Todo: {todo.get('title', 'Untitled Todo')}\n"
