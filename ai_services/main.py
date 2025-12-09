@@ -12,7 +12,7 @@ import json
 
 # Import our services
 from rag import rag_service
-from gemini import gemini_service
+from llm_service import gemini_service
 
 load_dotenv()
 

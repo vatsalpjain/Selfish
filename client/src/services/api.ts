@@ -42,6 +42,16 @@ export interface UpdateTodoData {
   dueDate?: string;
 }
 
+// ============================================
+// CHAT SESSION INTERFACES
+// ============================================
+export interface ChatSession {
+  session_id: string;
+  title: string;
+  created_at: string;
+  preview: string;
+}
+
 const API = axios.create({
   baseURL: "http://localhost:5000/api",
 });
@@ -262,19 +272,58 @@ export const checkAIHealth = async (): Promise<{ success: boolean; ai_service: a
 };
 
 /**
- * Get chat history
+ * Get chat history for a specific session
+ * @param sessionId - The session ID to get messages for (required for specific session)
+ * @param limit - Maximum number of messages to return
+ * @returns Chat messages for that session, or empty array if no sessionId
  */
-export const getChatHistory = async (limit = 50): Promise<{ success: boolean; messages: any[] }> => {
-  const response = await API.get(`/ai/history?limit=${limit}`);
+export const getChatHistory = async (sessionId?: string, limit = 50): Promise<{ success: boolean; messages: any[] }> => {
+  // Build query params
+  const params = new URLSearchParams();
+  params.append('limit', limit.toString());
+  if (sessionId) {
+    params.append('session_id', sessionId);
+  }
+  
+  const response = await API.get(`/ai/history?${params.toString()}`);
   return response.data;
 };
 
 /**
- * Save chat message
+ * Save a chat message to a session
+ * @param role - 'user' or 'model'
+ * @param content - Message content
+ * @param sessionId - The session ID this message belongs to (REQUIRED)
  */
-export const saveChatMessage = async (role: string, content: string): Promise<{ success: boolean }> => {
-  const response = await API.post('/ai/history', { role, content });
+export const saveChatMessage = async (
+  role: string, 
+  content: string, 
+  sessionId: string
+): Promise<{ success: boolean }> => {
+  const response = await API.post('/ai/history', { role, content, session_id: sessionId });
   return response.data;
 };
 
-
+/**
+ * Get all chat sessions for the current user
+ * Returns sessions sorted by most recent first
+ */
+export const getChatSessions = async (): Promise<{ success: boolean; sessions: ChatSession[] }> => {
+  const response = await API.get('/ai/sessions');
+  return response.data;
+};
+/**
+ * Delete a chat session and all its messages
+ * @param sessionId - The session ID to delete
+ */
+export const deleteChatSession = async (sessionId: string): Promise<{ success: boolean }> => {
+  const response = await API.delete(`/ai/sessions/${sessionId}`);
+  return response.data;
+};
+/**
+ * Generate a new unique session ID
+ * Uses crypto.randomUUID() for browser-native UUID generation
+ */
+export const generateSessionId = (): string => {
+  return crypto.randomUUID();
+};

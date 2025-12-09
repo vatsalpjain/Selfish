@@ -201,18 +201,21 @@ export const getChatHistory = async (req, res) => {
         const userId = req.user.id;
         const { limit = 50, session_id } = req.query;
 
-        // Query to get recent messages
+        // If no session_id provided, return empty (for new chats)
+        if (!session_id) {
+            return res.status(200).json({
+                success: true,
+                messages: []
+            });
+        }
+        // Query messages for specific session only
         let query = supabase
             .from('chat_history')
             .select('*')
             .eq('user_id', userId)
+            .eq('session_id', session_id) 
             .order('created_at', { ascending: false })
             .limit(parseInt(limit));
-
-        // Filter by session if provided
-        if (session_id) {
-            query = query.eq('session_id', session_id);
-        }
 
         const { data, error } = await query;
 
@@ -235,7 +238,94 @@ export const getChatHistory = async (req, res) => {
         });
     }
 };
-
+/**
+ * Get all chat sessions for current user
+ * Returns list of sessions with their first message as title
+ */
+export const getChatSessions = async (req, res) => {
+    try {
+        const supabase = (await import('../config/supabase.js')).default;
+        const userId = req.user.id;
+        // Get all unique session_ids with their earliest message (for title)
+        // We'll get all messages grouped by session, then extract first message per session
+        const { data: messages, error } = await supabase
+            .from('chat_history')
+            .select('session_id, content, role, created_at')
+            .eq('user_id', userId)
+            .not('session_id', 'is', null)  // Only get messages WITH a session_id
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        // Group messages by session_id and get first user message as title
+        const sessionsMap = new Map();
+        
+        for (const msg of messages) {
+            if (!sessionsMap.has(msg.session_id)) {
+                // First message of this session - use as title
+                sessionsMap.set(msg.session_id, {
+                    session_id: msg.session_id,
+                    // Use first user message as title, or first message if no user message
+                    title: msg.role === 'user' 
+                        ? msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
+                        : 'New Chat',
+                    created_at: msg.created_at,
+                    preview: msg.content.substring(0, 100)
+                });
+            } else if (msg.role === 'user' && sessionsMap.get(msg.session_id).title === 'New Chat') {
+                // Update title with first user message if we haven't found one yet
+                const session = sessionsMap.get(msg.session_id);
+                session.title = msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '');
+            }
+        }
+        // Convert map to array and sort by created_at descending (newest first)
+        const sessions = Array.from(sessionsMap.values())
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        res.status(200).json({
+            success: true,
+            sessions
+        });
+    } catch (error) {
+        console.error('Error getting chat sessions:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get chat sessions',
+            error: error.message
+        });
+    }
+};
+/**
+ * Delete a chat session and all its messages
+ */
+export const deleteChatSession = async (req, res) => {
+    try {
+        const supabase = (await import('../config/supabase.js')).default;
+        const userId = req.user.id;
+        const { sessionId } = req.params;
+        if (!sessionId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session ID is required'
+            });
+        }
+        // Delete all messages for this session (only if user owns them)
+        const { error } = await supabase
+            .from('chat_history')
+            .delete()
+            .eq('user_id', userId)
+            .eq('session_id', sessionId);
+        if (error) throw error;
+        res.status(200).json({
+            success: true,
+            message: 'Session deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting chat session:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete session',
+            error: error.message
+        });
+    }
+};
 /**
  * Save a chat message
  */
@@ -252,6 +342,12 @@ export const saveChatMessage = async (req, res) => {
             });
         }
 
+        if (!session_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Session ID is required'
+            });
+        }
         // Insert message into chat_history
         const { data, error } = await supabase
             .from('chat_history')
@@ -259,7 +355,7 @@ export const saveChatMessage = async (req, res) => {
                 user_id: userId,
                 role,
                 content,
-                session_id: session_id || null
+                session_id: session_id 
             }])
             .select()
             .single();
