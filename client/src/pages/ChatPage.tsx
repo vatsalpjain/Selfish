@@ -262,23 +262,22 @@ export default function ChatPage() {
         >
             {/* Floating Navbar */}
             <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4">
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl px-6 py-3">
+                <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl px-6 py-4">
                     <div className="flex justify-between items-center">
-                        <h1 className="text-3xl font-extralight tracking-wider text-white">Selfish</h1>
+                        <h1 className="text-3xl font-extralight tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Selfish</h1>
+                        <div className="h-8 w-px bg-white/20"></div>
                         <div className="flex items-center gap-4">
-                            <Link to="/dashboard" className="px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium">
+                            <Link to="/dashboard" className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105">
                                 Dashboard
                             </Link>
-                            <Link to="/calendar" className="px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium">
-                                📅 Calendar
+                            <Link to="/calendar" className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105">
+                                Calendar
                             </Link>
-                            <Link to="/todos" className="px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium">
-                                ✅ Todos
+                            <Link to="/todos" className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105">
+                                Todos
                             </Link>
-                            <Link to="/ai-chat" className="px-4 py-2 text-white bg-white/20 rounded-lg transition-all font-medium">
-                                🤖 AI Chat
-                            </Link>
-                            <button className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-colors font-medium" onClick={logout}>
+                            <div className="h-8 w-px bg-white/20"></div>
+                            <button className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg" onClick={logout}>
                                 Logout
                             </button>
                         </div>
@@ -385,7 +384,7 @@ export default function ChatPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-xl font-bold text-white">
-                                    🤖 Selfish AI
+                                    Selfish AI
                                 </h2>
                                 <p className="text-gray-400 text-sm">
                                     Your intelligent assistant for projects, todos, and canvas
@@ -404,7 +403,7 @@ export default function ChatPage() {
                                     disabled={isIndexing || !aiHealthy}
                                     className="text-xs text-orange-400 hover:text-orange-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    {isIndexing ? '⏳' : '🔄 Refresh'}
+                                    {isIndexing ? 'Indexing...' : 'Refresh Data'}
                                 </button>
                             </div>
                         </div>
@@ -414,20 +413,20 @@ export default function ChatPage() {
                     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 mb-3 flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                                <p className="text-lg mb-4">👋 Hi! I'm your Selfish AI assistant.</p>
+                                <p className="text-lg mb-4">Hi! I'm your Selfish AI assistant.</p>
                                 <p className="text-sm mb-6">Ask me about your projects, todos, or anything else!</p>
                                 <div className="grid grid-cols-2 gap-4 max-w-md">
                                     <button onClick={() => setInput('What projects am I working on?')} className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm transition-all">
-                                        📊 My projects
+                                        My projects
                                     </button>
                                     <button onClick={() => setInput('What are my upcoming todos?')} className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm transition-all">
-                                        ✅ My todos
+                                        My todos
                                     </button>
                                     <button onClick={() => setInput('Help me organize my work')} className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm transition-all">
-                                        🎯 Organize work
+                                        Organize work
                                     </button>
                                     <button onClick={() => setInput('Give me productivity tips')} className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm transition-all">
-                                        💡 Tips
+                                        Tips
                                     </button>
                                 </div>
                             </div>
@@ -437,7 +436,7 @@ export default function ChatPage() {
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-orange-500 text-white' : 'bg-white/10 backdrop-blur-sm border border-white/10 text-gray-100'}`}>
                                             <div className="text-xs mb-1 opacity-70">
-                                                {msg.role === 'user' ? 'You' : '🤖 AI'}
+                                                {msg.role === 'user' ? 'You' : 'AI'}
                                             </div>
                                             <div className="whitespace-pre-wrap">{msg.content}</div>
                                         </div>

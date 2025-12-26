@@ -67,3 +67,5 @@ mongodb_data/
 # Temporary files
 tmp/
 temp/
+
+copilot-instructions.md

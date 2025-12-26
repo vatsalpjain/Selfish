@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { addEvent, updateEvent, deleteEvent as deleteEventAPI } from '../services/api';
 
 interface CalendarEvent {
@@ -18,6 +19,8 @@ interface CalendarEvent {
 }
 
 export default function CalenderPage() {
+    const { logout } = useAuth();
+    const navigate = useNavigate();
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -347,17 +350,36 @@ export default function CalenderPage() {
             }}
         >
             {/* Floating Navbar */}
-            <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4">
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl px-6 py-3">
+            <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
+                <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl px-6 py-4">
                     <div className="flex justify-between items-center">
+                        <h1 className="text-3xl font-extralight tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Calendar</h1>
                         <div className="flex items-center gap-4">
                             <Link
                                 to="/dashboard"
-                                className="text-gray-300 hover:text-white font-medium transition-colors"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
                             >
-                                ← Dashboard
+                                Dashboard
                             </Link>
-                            <h1 className="text-3xl font-extralight tracking-wider text-white">Calendar</h1>
+                            <Link
+                                to="/todos"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+                            >
+                                Todos
+                            </Link>
+                            <Link
+                                to="/ai-chat"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+                            >
+                                AI Chat
+                            </Link>
+                            <div className="h-8 w-px bg-white/20"></div>
+                            <button
+                                onClick={() => { logout(); navigate('/login'); }}
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg"
+                            >
+                                Logout
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -370,7 +392,11 @@ export default function CalenderPage() {
 
                         {!isConnected ? (
                             <div className="text-center py-12">
-                                <div className="text-6xl mb-4">📅</div>
+                                <div className="w-20 h-20 mx-auto mb-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
                                 <h3 className="text-2xl font-semibold text-white mb-3">
                                     Connect Your Calendar
                                 </h3>

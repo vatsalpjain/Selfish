@@ -18,7 +18,7 @@ class GeminiChatService:
     - Support for RAG context integration
     - Streaming responses for real-time chat
     - Multi-turn conversation history
-    - Note: Vision/image functions disabled (Groq doesn't support images)
+    - Vision support via Llama-4 Scout model for image analysis
     """
     
     def __init__(self):
@@ -50,7 +50,7 @@ class GeminiChatService:
             query: User's current question
             context: RAG context from user's data
             history: Previous conversation messages [{"role": "user"/"model", "content": "..."}]
-            images: Optional list of base64 encoded images (IGNORED - Groq doesn't support images)
+            images: Optional list of base64 encoded images (uses vision model when provided)
             
         Yields:
             Chunks of generated text
@@ -58,11 +58,7 @@ class GeminiChatService:
         if not self.client:
             raise RuntimeError("Groq client not initialized")
         
-        # Note: Images are ignored since Groq doesn't support vision
-        if images:
-            print("⚠️ Images provided but Groq doesn't support vision - ignoring images")
-        
-               # Build system prompt with context
+        # Build system prompt with context
         system_message = f"""You are Selfish AI, a helpful assistant for the Selfish project management app.
 
 CONTEXT FROM USER'S DATA:
@@ -104,12 +100,7 @@ Instructions:
             messages.append({"role": "user", "content": user_content})
         else:
             messages.append({"role": "user", "content": query})
-            
-        # Add current query
-        messages.append({
-            "role": "user",
-            "content": query
-        })
+        
         model_to_use = self.vision_model if images else self.model_name
         try:
             # Generate streaming response

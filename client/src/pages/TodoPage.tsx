@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import {
     getTodos,
     createTodo,
@@ -27,6 +28,12 @@ import {
  */
 
 export default function TodoPage() {
+    // ============================================
+    // AUTH & NAVIGATION
+    // ============================================
+    const { logout } = useAuth();
+    const navigate = useNavigate();
+
     // ============================================
     // STATE MANAGEMENT
     // ============================================
@@ -256,17 +263,38 @@ export default function TodoPage() {
         >
             {/* Navbar */}
             <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl px-6 py-3">
+                <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl px-6 py-4">
                     <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-extralight tracking-wider text-white">
-                            ✅ Todo List
+                        <h1 className="text-2xl font-extralight tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                            Todo List
                         </h1>
-                        <Link
-                            to="/dashboard"
-                            className="px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium"
-                        >
-                            ← Back to Dashboard
-                        </Link>
+                        <div className="flex items-center gap-4">
+                            <Link
+                                to="/dashboard"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+                            >
+                                Dashboard
+                            </Link>
+                            <Link
+                                to="/calendar"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+                            >
+                                Calendar
+                            </Link>
+                            <Link
+                                to="/ai-chat"
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+                            >
+                                AI Chat
+                            </Link>
+                            <div className="h-8 w-px bg-white/20"></div>
+                            <button
+                                onClick={() => { logout(); navigate('/login'); }}
+                                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg"
+                            >
+                                Logout
+                            </button>
+                        </div>
                     </div>
                 </div>
             </nav>

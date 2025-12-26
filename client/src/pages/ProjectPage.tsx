@@ -2,9 +2,11 @@
 import { Tldraw, Editor, getSnapshot } from "tldraw";
 import "tldraw/tldraw.css";
 // React Router hooks and components for URL params and navigation
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 // React hooks for state and side effects
 import { useEffect, useState, useRef } from "react";
+// Auth context for logout functionality
+import { useAuth } from "../hooks/useAuth";
 // API functions to fetch and update project data
 import { getProjectById } from "../services/api";
 import {
@@ -31,6 +33,9 @@ interface Project {
 }
 
 export default function ProjectPage() {
+  // Auth and navigation hooks
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   // State for project
   const [project, setProject] = useState<Project | null>(null);
   // Extract projectId from the URL parameters (e.g., /projects/:projectId)
@@ -273,26 +278,40 @@ export default function ProjectPage() {
     >
       {/* Floating Navbar */}
       <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-6xl px-4">
-        <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl px-6 py-3">
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {/* Back Link */}
               <Link
                 to="/dashboard"
-                className="text-gray-300 hover:text-white font-medium transition-colors"
+                className="px-5 py-2.5 text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
               >
                 ← Back
               </Link>
+              <div className="h-8 w-px bg-white/20"></div>
               {/* Title */}
               <h2 className="text-xl font-bold text-white">{project.title}</h2>
             </div>
             <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-extralight tracking-wider text-white">Selfish</h1>
+              <h1 className="text-3xl font-extralight tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Selfish</h1>
+              <div className="h-8 w-px bg-white/20"></div>
               <Link
                 to="/calendar"
-                className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium"
+                className="px-4 py-2 text-sm text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
               >
-                📅 Calendar
+                Calendar
+              </Link>
+              <Link
+                to="/todos"
+                className="px-4 py-2 text-sm text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+              >
+                Todos
+              </Link>
+              <Link
+                to="/ai-chat"
+                className="px-4 py-2 text-sm text-gray-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg hover:scale-105"
+              >
+                AI Chat
               </Link>
             </div>
             <div className="flex items-center gap-3">
@@ -305,9 +324,16 @@ export default function ProjectPage() {
               {/* Save button */}
               <button
                 onClick={handleSave}
-                className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full transition-colors font-medium"
+                className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg"
               >
                 Save
+              </button>
+              <div className="h-8 w-px bg-white/20"></div>
+              <button
+                onClick={() => { logout(); navigate('/login'); }}
+                className="px-5 py-2 text-gray-300 hover:text-white bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-lg"
+              >
+                Logout
               </button>
             </div>
           </div>

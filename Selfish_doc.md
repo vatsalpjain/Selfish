@@ -24,7 +24,7 @@ Individuals struggle with visual project planning and daily tracking:
 - Supports multiple "slides" per project for day-by-day progression
 - Combines freehand drawing, sticky notes, shapes, and text
 - Persists all canvas state to Supabase for seamless recovery
-- Dark, modern UI with glassmorphism design (Function Health inspired)
+- Dark, modern UI with glassmorphism design
 
 ### Key Value Proposition
 
@@ -44,28 +44,35 @@ Individuals struggle with visual project planning and daily tracking:
 ┌─────────────────────────────────────────────────────────┐
 │                   USER INTERFACE                        │
 │         (React + TypeScript + Tailwind + tldraw)        │
+│  • Dashboard  • Projects  • Calendar  • Todos  • AI Chat│
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│                 API LAYER (Express.js)                  │
-│  • Project CRUD    • Canvas State Management            │
-│  • Slide CRUD      • User Authentication                │
+│              API LAYER (Express.js)                     │
+│  • Auth  • Projects  • Slides  • Calendar  • Todos  • AI│
 └──────────┬──────────────────────┬───────────────────────┘
            │                      │
            ▼                      ▼
 ┌────────────────────┐   ┌──────────────────────────────┐
-│  AUTH MIDDLEWARE   │   │    CANVAS STATE HANDLER      │
-│  • JWT Verify      │   │    • JSON Serialization      │
-│  • User Context    │   │    • Large Object Storage    │
-└────────────────────┘   └──────────────────────────────┘
-           │                      │
-           └──────────┬───────────┘
-                      ▼
+│  AUTH MIDDLEWARE   │   │  AI SERVICE (FastAPI/Python) │
+│  • JWT Verify      │   │  • RAG (ChromaDB)            │
+│  • User Context    │   │  • Groq LLM                  │
+└────────────────────┘   │  • Canvas Analysis           │
+                         └──────────────────────────────┘
+           │  
+           ▼  
 ┌─────────────────────────────────────────────────────────┐
-│                DATABASE (Supabase)                      │
-│  • users           • projects        • canvas_slides    │
-│  • calendar_tokens • todos                              │
+│                DATABASE (Supabase PostgreSQL)           │
+│  • users • projects • slides • todos                    │
+│  • calendar_tokens • chat_sessions • chat_messages      │
+└─────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────┐
+│            EXTERNAL INTEGRATIONS                        │
+│  • Google Calendar API (OAuth 2.0)                      │
+│  • Groq API Inference                                   │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -75,28 +82,38 @@ Individuals struggle with visual project planning and daily tracking:
 
 - React 18 with TypeScript
 - Vite (build tool)
-- Tailwind CSS (styling)
-- **tldraw** (canvas library)
+- Tailwind CSS (styling with glassmorphism)
+- **tldraw** (infinite canvas editor)
 - React Router v6 (navigation)
 - Axios (API calls)
 
-**Backend:**
+**Backend (Node.js):**
 
-- Node.js 18+ with Express
+- Node.js with Express
 - ES6 Modules
-- JWT (authentication)
-- bcryptjs (password hashing)
+- JWT (authentication - 30 day expiry)
 - @supabase/supabase-js (Supabase client)
+- Google Calendar API integration
+- Axios (AI service communication)
+
+**AI Service (Python):**
+
+- FastAPI (async web framework)
+- Groq API  AI (LLM)
+- ChromaDB (vector database for RAG)
+- Supabase client (data retrieval)
+- Pillow (image processing)
 
 **Database:**
 
 - Supabase PostgreSQL (cloud)
-- Tables: users, projects, canvas_slides, calendar_tokens, todos
+- Tables: users, projects, slides, todos, calendar_tokens, chat_sessions, chat_messages
 
 **Deployment:**
 
 - Frontend: Vercel (free tier)
 - Backend: Render (free tier)
+- AI Service: Python server (local/cloud)
 - Database: Supabase (free tier)
 
 ---
@@ -127,31 +144,32 @@ Individuals struggle with visual project planning and daily tracking:
 - JWT-based authentication (30-day expiry)
 - Protected routes with middleware
 - Persistent login via localStorage
-- Token refresh on app load
+- Token validation on app load
 
 **Key Files:**
 
 - `context/AuthContext.tsx` - Global auth state
 - `middleware/auth.js` - JWT verification
-- `config/supabase.js` - Supabase client configuration
+- `config/supabase.js` - Supabase client
 - `pages/Login.tsx`, `pages/Register.tsx` - Auth UI
+- `controllers/authController.js` - Auth logic
 
-### 3.2 Project Management (Chalra hai abhi)
+---
 
-**Purpose**: CRUD operations for user projects
+### 3.2 Project Management ✅ COMPLETE
 
-**Schema:**
+**Purpose**: CRUD operations for user projects with infinite canvas
 
-```javascript
-{
-  id: ObjectId,
-  userId: ObjectId (ref: User),
-  title: String,
-  description: String (optional),
-  thumbnail: String (base64 or URL - optional),
-  createdAt: Date,
-  updatedAt: Date
-}
+**Database Schema (Supabase):**
+
+```sql
+projects (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  title TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
 ```
 
 **API Endpoints:**
@@ -159,560 +177,757 @@ Individuals struggle with visual project planning and daily tracking:
 ```
 GET    /api/projects          - List all user projects
 GET    /api/projects/:id      - Get single project
-POST   /api/projects          - Create new project
+POST   /api/projects          - Create new project (title only)
 PUT    /api/projects/:id      - Update project
-DELETE /api/projects/:id      - Delete project
+DELETE /api/projects/:id      - Delete project + all slides
 ```
 
-**Frontend Components:**
+**Frontend Features:**
 
-- `Dashboard.tsx`  - Project list with create form
-- `ProjectCard.tsx` - Individual project display
+- Search projects (client-side filtering)
+- Create project modal
+- Project cards with hover effects
+- Delete confirmation
+- Glassmorphism design
 
-### 3.3 Canvas Slide System
+---
 
-**Purpose**: Store multiple canvas states per project (one per day/session)
+### 3.3 Canvas Slide System ✅ COMPLETE
 
-**Schema:**
+**Purpose**: Store multiple canvas states per project using tldraw
+
+**Database Schema:**
+
+```sql
+slides (
+  id UUID PRIMARY KEY,
+  project UUID REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  slide_data TEXT,  -- tldraw JSON stringified
+  screenshot_url TEXT,  -- base64 screenshot
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+**Canvas State Structure (tldraw v2):**
 
 ```javascript
 {
-  id: ObjectId,
-  projectId: ObjectId (ref: Project),
-  slideNumber: Number,
-  title: String (e.g., "Day 1", "Session 3"),
-  canvasState: Object,  // tldraw JSON
-  thumbnail: String (optional - canvas preview),
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-**Canvas State Structure (tldraw):**
-
-```javascript
-{
-  shapes: [
-    { id: "shape1", type: "draw", x: 100, y: 50, ... },
-    { id: "shape2", type: "text", text: "My note", ... },
-    { id: "shape3", type: "sticky", ... }
-  ],
-  bindings: [...],  // Connections between shapes
-  assets: [...]     // Images, files
+  document: {
+    store: {
+      // shapes, bindings, assets
+    }
+  },
+  session: {
+    // viewport, selection state
+  }
 }
 ```
 
 **API Endpoints:**
 
 ```
-GET    /api/projects/:id/slides        - List all slides
-GET    /api/slides/:slideId            - Get slide with canvas state
-POST   /api/projects/:id/slides        - Create new slide
-PUT    /api/slides/:slideId            - Update canvas state
-DELETE /api/slides/:slideId            - Delete slide
+GET    /api/slides/project/:projectId  - Get all slides for project
+POST   /api/slides                     - Create new slide
+GET    /api/slides/:id                 - Get slide by ID
+PUT    /api/slides/:id                 - Update slide (canvas data + name)
+DELETE /api/slides/:id                 - Delete slide
 ```
-
-### 3.4 Canvas Editor (tldraw Integration)
-
-**Purpose**: Infinite canvas with drawing, shapes, text, sticky notes
 
 **Features:**
 
-- Freehand drawing with pen tool
-- Shapes (rectangle, circle, arrow, line)
-- Text boxes and sticky notes
-- Image upload and embedding
-- Zoom and pan controls
-- Undo/redo functionality
-- Export canvas as PNG/SVG
+- Infinite canvas with tldraw
+- Auto-screenshot generation on save
+- Slide navigation sidebar
+- Rename slides
+- Delete slides with confirmation
+- Real-time save status
 
-**Key Functions:**
+---
 
-```typescript
-// Load canvas from saved state
-canvas.loadFromJSON(canvasData)
+### 3.4 Todo Management ✅ COMPLETE
 
-// Save canvas state to backend
-const canvasJSON = canvas.toJSON()
-await saveCanvasState(slideId, canvasJSON)
+**Purpose**: Task tracking integrated with calendar
 
-// Auto-save every 30 seconds
-useEffect(() => {
-  const interval = setInterval(() => {
-    saveCanvasState()
-  }, 30000)
-  return () => clearInterval(interval)
-}, [])
+**Database Schema:**
+
+```sql
+todos (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  priority TEXT CHECK (priority IN ('low', 'medium', 'high')),
+  status TEXT CHECK (status IN ('pending', 'in-progress', 'completed')),
+  due_date TIMESTAMP,
+  calendar_event_id TEXT,  -- Google Calendar event ID
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
 ```
 
-**Component Structure:**
+**API Endpoints:**
 
-```typescript
-<ProjectCanvas projectId={id}>
-  <SlideNavigation slides={slides} />
-  <TldrawEditor 
-    initialData={currentSlide.canvasState}
-    onSave={handleSave}
-  />
-  <Toolbar />
-</ProjectCanvas>
+```
+GET    /api/todos              - Get all todos
+POST   /api/todos              - Create todo
+GET    /api/todos/:id          - Get single todo
+PUT    /api/todos/:id          - Update todo
+DELETE /api/todos/:id          - Delete todo
+PUT    /api/todos/:id/complete - Toggle completion status
+POST   /api/todos/:id/sync-calendar - Sync to Google Calendar
 ```
 
-### 3.5 UI/UX Design System
+**Features:**
+
+- Priority levels (low/medium/high)
+- Status tracking (pending/in-progress/completed)
+- Due date with overdue detection
+- Filter by status
+- Inline editing
+- Calendar sync capability
+- Dashboard widget
+
+---
+
+### 3.5 Calendar Integration ✅ COMPLETE
+
+**Purpose**: Google Calendar sync for events
+
+**Database Schema:**
+
+```sql
+calendar_tokens (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) UNIQUE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expiry_date TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+**API Endpoints:**
+
+```
+GET    /api/calendar/auth/google    - Get OAuth URL
+GET    /api/calendar/callback       - Handle OAuth callback
+GET    /api/calendar/status         - Check connection status
+GET    /api/calendar/events         - Get all events
+POST   /api/calendar/addEvent       - Create event
+PUT    /api/calendar/updateEvent    - Update event
+DELETE /api/calendar/deleteEvent    - Delete event
+DELETE /api/calendar/disconnect     - Remove calendar connection
+```
+
+**Features:**
+
+- OAuth 2.0 authentication
+- Token refresh on expiry
+- Monthly calendar view
+- Create/Edit/Delete events
+- Event search
+- Mini calendar widget on dashboard
+
+---
+
+### 3.6 AI Chat System ✅ COMPLETE
+
+**Purpose**: RAG-powered AI assistant with chat history
+
+**Architecture:**
+
+- **Node.js Backend**: API proxy to Python AI service
+- **Python AI Service** (FastAPI):
+  - ChromaDB vector store
+  - Groq API AI (LLM)
+  - RAG (Retrieval-Augmented Generation)
+  - Canvas image analysis
+
+**Database Schema:**
+
+```sql
+chat_sessions (
+  session_id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  title TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+
+chat_messages (
+  id UUID PRIMARY KEY,
+  session_id TEXT REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id),
+  role TEXT CHECK (role IN ('user', 'model')),
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+**Node.js API Endpoints:**
+
+```
+GET    /api/ai/health           - Check AI service status
+POST   /api/ai/index            - Index user data for RAG
+POST   /api/ai/chat             - Stream chat response
+POST   /api/ai/analyze-canvas   - Analyze canvas screenshot
+GET    /api/ai/chat-history/:sessionId - Get chat messages
+GET    /api/ai/chat-sessions    - Get all chat sessions
+DELETE /api/ai/chat-sessions/:sessionId - Delete session
+POST   /api/ai/save-message     - Save chat message
+```
+
+**Python AI Service (http://localhost:8000):**
+
+```
+GET    /                 - Service info
+GET    /health          - Health check
+POST   /index-user-data - Index projects/todos/slides
+POST   /chat            - Streaming chat endpoint
+POST   /analyze-canvas  - Canvas analysis with vision
+```
+
+**Features:**
+
+- Streaming responses (SSE)
+- Multi-session chat history
+- Context-aware responses (RAG)
+- Session management
+- Canvas/image analysis
+- User data indexing (projects, todos, slides)
+
+---
+
+### 3.7 UI/UX Design System ✅ COMPLETE
 
 **Design Principles:**
 
-- Dark mode by default (`bg-gray-900`)
-- Glassmorphism effects (`backdrop-blur`, `bg-white/10`)
-- Floating elements with transparency
+- Dark mode default (`bg-gray-900`)
+- Glassmorphism effects (`backdrop-blur-xl`, `bg-white/10`)
+- Gradient branding on "Selfish" logo
 - Orange accent color (#f97316)
-- Smooth transitions and hover states
+- Smooth hover animations (`hover:scale-105`, `transition-all duration-200`)
+- Tile-based navigation
+- Visual dividers between sections
+
+**Navigation System:**
+
+- Floating glassmorphic navbar (fixed top)
+- Active page link hidden (no redundancy)
+- Hover effects with scale and shadow
+- Consistent across all pages
+- "Logout" button with red hover state
 
 **Component Patterns:**
 
 ```tsx
 // Glassmorphism Card
-<div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl p-6">
+<div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl">
 
 // Floating Navbar
-<nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-white/10 backdrop-blur-lg">
+<nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-white/10 backdrop-blur-xl">
 
-// Orange CTA Button
-<button className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl">
+// Navigation Tile
+<Link className="px-5 py-2.5 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-xl transition-all duration-200 hover:scale-105">
+
+// Gradient Branding
+<h1 className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+
+// Modal Overlay
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm">
 ```
 
 ---
 
-## 4. Development Phases
+## 4. Current Project Status
 
-### Phase 1: Core Infrastructure (DONE)
+### ✅ **COMPLETED FEATURES**
 
-**Deliverables:**
+#### **Phase 1-3: Core Infrastructure**
 
-1. [X] Backend API with Express + MongoDB
-2. [X] User authentication (register, login, JWT)
-3. [X] Frontend auth pages (Login, Register)
-4. [X] Protected route system
-5. [X] Dashboard with project list
-6. [X] Basic styling with Tailwind
-7. [X] Deployed to development environment
+1. ✅ Backend API with Express + Supabase
+2. ✅ User authentication (register, login, JWT)
+3. ✅ Frontend auth pages (Login, Register)
+4. ✅ Protected route system
+5. ✅ Dashboard with project list
+6. ✅ Project CRUD (Create, Read, Update, Delete)
+7. ✅ Canvas integration with tldraw
+8. ✅ Slide system (multiple canvases per project)
+9. ✅ Canvas auto-save + manual save
+10. ✅ Slide navigation, rename, delete
+11. ✅ Screenshot generation for slides
 
-**Status:** COMPLETE
+#### **Phase 4: Extended Features**
 
-- Backend: Running on localhost:5000
-- Frontend: Running on localhost:5173
-- Auth flow working end-to-end
+12. ✅ Google Calendar integration (OAuth 2.0)
+13. ✅ Calendar events CRUD
+14. ✅ Todo management system
+15. ✅ Todo-Calendar sync capability
+16. ✅ Mini calendar widget
+17. ✅ Todo widget on dashboard
 
----
+#### **Phase 5: AI Integration**
 
-### Phase 2: Project Management (Chalra hai)
+18. ✅ FastAPI AI service (Python)
+19. ✅ RAG system with ChromaDB
+20. ✅ LLM integration
+21. ✅ Streaming chat responses
+22. ✅ Chat session management
+23. ✅ Chat history persistence
+24. ✅ User data indexing for RAG
+25. ✅ Canvas image analysis
 
-**Goal:** Full CRUD for projects with API integration
+#### **Phase 6: UI/UX Polish**
 
-**Tasks:**
-
-1. [X] Backend: Create Project model and routes
-2. [X] Backend: Implement project CRUD controllers
-3. [X] Backend: Add project-user association
-4. [X] Frontend: Update Dashboard with real API calls
-5. [X] Frontend: Add project creation flow
-6. [X] Frontend: Add project edit/delete functionality
-7. [X] Frontend: Add empty states and loading indicators
-8. [X] Test: Full project lifecycle
-
-**Success Criteria:**
-
-- Can create, view, edit, delete projects
-- Projects persist across sessions
-- UI shows real-time updates
-
-**Estimated Time:** 3-4 days
-
----
-
-### Phase 3: Canvas Integration (Week 2-3)
-
-**Goal:** Working canvas editor with tldraw
-
-**Tasks:**
-
-1. [X] Install and configure tldraw library
-2. [X] Create ProjectCanvas page component
-3. [X] Implement canvas state save/load
-4. [X] Add slide navigation sidebar
-5. [X] Implement "New Slide" functionality
-6. [X] Add auto-save (every 30 seconds)
-7. [X] Add manual save button with feedback
-8. [X] Style canvas UI with dark theme
-9. [X] Test: Draw, save, reload, verify persistence
-
-**Success Criteria:**
-
-- Can draw on canvas and see shapes
-- Canvas state saves to Supabase
-- Reloading page restores canvas
-- Multiple slides per project work
-
-**Estimated Time:** 4-5 days
+26. ✅ Glassmorphism design system
+27. ✅ Gradient branding
+28. ✅ Tile-based navigation
+29. ✅ Hover animations (scale + shadow)
+30. ✅ Active page indicator
+31. ✅ Modal for project creation
+32. ✅ Project search functionality
+33. ✅ Highlighted search results
+34. ✅ Consistent spacing and visual hierarchy
+35. ✅ Background blur enhancements
 
 ---
 
-### Phase 4: Slides System (Week 3)
+### 🎯 **PROJECT COMPLETION STATUS**
 
-**Goal:** Multiple canvas slides per project
+| Category                 | Status      | Progress |
+| ------------------------ | ----------- | -------- |
+| **Authentication** | ✅ Complete | 100%     |
+| **Projects**       | ✅ Complete | 100%     |
+| **Canvas/Slides**  | ✅ Complete | 100%     |
+| **Todos**          | ✅ Complete | 100%     |
+| **Calendar**       | ✅ Complete | 100%     |
+| **AI Chat**        | ✅ Complete | 100%     |
+| **UI/UX**          | ✅ Complete | 100%     |
+| **Backend**        | ✅ Complete | 100%     |
+| **Database**       | ✅ Complete | 100%     |
 
-**Tasks:**
-
-1. [X] Backend: Create Slide model and routes
-2. [X] Backend: Implement slide CRUD
-3. [X] Frontend: Slide navigation component
-4. [X] Frontend: "Previous/Next Slide" buttons
-5. [X] Frontend: Slide thumbnail generation
-6. [X] Frontend: Slide deletion with confirmation
-7. [ ] Frontend: Slide reordering (drag-and-drop)
-8. [ ] Test: Create 5 slides, navigate, delete
-
-**Success Criteria:**
-
-- Can create unlimited slides per project
-- Navigation between slides is smooth
-- Each slide maintains its own canvas state
-- Thumbnails show canvas preview
-
-**Estimated Time:** 3-4 days
+**Overall Project Completion: 100% (MVP + Extended Features)**
 
 ---
 
-### Phase 5: Polish & UX (Week 4)
+### 📊 **FEATURE MATRIX**
 
-**Goal:** Professional UI and smooth user experience
-
-**Tasks:**
-
-1. [ ] Add loading skeletons for all async operations
-2. [ ] Implement error handling with toast notifications
-3. [ ] Add confirmation modals for destructive actions
-4. [ ] Optimize canvas rendering performance
-5. [ ] Add keyboard shortcuts (Ctrl+S to save, etc.)
-6. [ ] Implement responsive design (mobile-friendly)
-7. [ ] Add project search/filter on dashboard
-8. [ ] Add recent projects section
-9. [ ] Create 404 and error pages
-1. [ ] Write comprehensive error messages
-
-**Success Criteria:**
-
-- No jarring UI transitions
-- Clear feedback for all actions
-- Works on mobile (basic functionality)
-- Professional, polished feel
-
-**Estimated Time:** 3-4 days
+| Feature       | Frontend      | Backend       | Database     | Status |
+| ------------- | ------------- | ------------- | ------------ | ------ |
+| User Auth     | React Context | Express JWT   | Supabase     | ✅     |
+| Projects      | Dashboard UI  | Express API   | PostgreSQL   | ✅     |
+| Canvas Editor | tldraw        | Slide API     | JSON Storage | ✅     |
+| Todos         | TodoPage      | Express API   | PostgreSQL   | ✅     |
+| Calendar      | Calendar UI   | Google API    | OAuth Tokens | ✅     |
+| AI Chat       | ChatPage      | FastAPI Proxy | Chat History | ✅     |
 
 ---
 
-### Phase 6: Deployment & Documentation (Week 4-5)
+## 5. Database Schema (Supabase PostgreSQL)
 
-**Goal:** Production-ready deployment with docs
+### Users Table
 
-**Tasks:**
-
-1. [ ] Deploy backend to Render
-2. [ ] Deploy frontend to Vercel
-3. [ ] Configure MongoDB Atlas production database
-4. [ ] Setup environment variables for production
-5. [ ] Add CORS configuration for production URLs
-6. [ ] Write comprehensive README
-7. [ ] Create demo video (3-5 minutes)
-8. [ ] Add code comments and documentation
-9. [ ] Create user guide (how to use)
-1. [ ] Performance testing and optimization
-
-**Success Criteria:**
-
-- App accessible via public URL
-- All features work in production
-- Clear documentation for future development
-- Demo video showcases key features
-
-**Estimated Time:** 2-3 days
-
----
-
-## 5. Database Schema Details
-
-### Users Collection
-
-```javascript
-{
-  id: ObjectId,
-  username: String (unique, required),
-  email: String (unique, required),
-  password: String (hashed, required),
-  createdAt: Date,
-  updatedAt: Date
-}
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,  -- bcrypt hashed
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-### Projects Collection
+### Projects Table
 
-```javascript
-{
-  id: ObjectId,
-  userId: ObjectId (ref: "User"),
-  title: String (required),
-  description: String,
-  thumbnail: String,  // Base64 or URL
-  slideCount: Number (default: 0),
-  lastOpenedAt: Date,
-  createdAt: Date,
-  updatedAt: Date
-}
+```sql
+CREATE TABLE projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_projects_user_id ON projects(user_id);
 ```
 
-### Canvas Slides Collection
+### Slides Table
 
-```javascript
-{
-  id: ObjectId,
-  projectId: ObjectId (ref: "Project"),
-  slideNumber: Number (auto-increment per project),
-  title: String (default: "Slide {number}"),
-  canvasState: {
-    shapes: Array,
-    bindings: Array,
-    assets: Array,
-    viewport: Object
-  },
-  thumbnail: String,  // Canvas preview as base64
-  createdAt: Date,
-  updatedAt: Date
-}
+```sql
+CREATE TABLE slides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project UUID REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT 'New Slide',
+  slide_data TEXT,  -- Stringified tldraw JSON
+  screenshot_url TEXT,  -- Base64 screenshot
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_slides_project ON slides(project);
 ```
 
-**Indexes:**
+### Todos Table
 
-```javascript
-// Projects
-db.projects.createIndex({ userId: 1, createdAt: -1 })
-db.projects.createIndex({ userId: 1, lastOpenedAt: -1 })
+```sql
+CREATE TABLE todos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+  status TEXT CHECK (status IN ('pending', 'in-progress', 'completed')) DEFAULT 'pending',
+  due_date TIMESTAMPTZ,
+  calendar_event_id TEXT,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-// Slides
-db.canvas_slides.createIndex({ projectId: 1, slideNumber: 1 })
-db.canvas_slides.createIndex({ projectId: 1, createdAt: -1 })
+CREATE INDEX idx_todos_user_id ON todos(user_id);
+CREATE INDEX idx_todos_status ON todos(status);
+```
+
+### Calendar Tokens Table
+
+```sql
+CREATE TABLE calendar_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expiry_date TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_calendar_tokens_user ON calendar_tokens(user_id);
+```
+
+### Chat Sessions Table
+
+```sql
+CREATE TABLE chat_sessions (
+  session_id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT DEFAULT 'New Chat',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
+```
+
+### Chat Messages Table
+
+```sql
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT CHECK (role IN ('user', 'model')) NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_chat_messages_session ON chat_messages(session_id);
+CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at DESC);
 ```
 
 ---
 
 ## 6. API Endpoints Reference
 
-### Authentication
+### Authentication (`/api/auth`)
 
 ```
-POST   /api/auth/register    - Create new user
-POST   /api/auth/login       - Login user
+POST   /api/auth/register    - Create new user (username, email, password)
+POST   /api/auth/login       - Login user (returns JWT token)
 GET    /api/auth/me          - Get current user (protected)
 ```
 
-### Projects
+### Projects (`/api/projects`)
 
 ```
-GET    /api/projects                - List all user projects
-POST   /api/projects                - Create new project
-GET    /api/projects/:id            - Get single project
-PUT    /api/projects/:id            - Update project
-DELETE /api/projects/:id            - Delete project (and all slides)
-GET    /api/projects/recent         - Get recently opened projects
+GET    /api/projects         - List all user projects
+POST   /api/projects         - Create new project (title)
+GET    /api/projects/:id     - Get single project details
+PUT    /api/projects/:id     - Update project (title)
+DELETE /api/projects/:id     - Delete project + all slides
 ```
 
-### Canvas Slides
+### Slides (`/api/slides`)
 
 ```
-GET    /api/projects/:projectId/slides          - List all slides for project
-POST   /api/projects/:projectId/slides          - Create new slide
-GET    /api/slides/:slideId                     - Get slide with canvas state
-PUT    /api/slides/:slideId                     - Update canvas state
-DELETE /api/slides/:slideId                     - Delete slide
-PUT    /api/slides/:slideId/reorder             - Reorder slides
+GET    /api/slides/project/:projectId  - Get all slides for project
+POST   /api/slides                     - Create new slide
+GET    /api/slides/:id                 - Get slide by ID
+PUT    /api/slides/:id                 - Update slide (data, name, screenshot)
+DELETE /api/slides/:id                 - Delete slide
+```
+
+### Todos (`/api/todos`)
+
+```
+GET    /api/todos              - Get all user todos
+POST   /api/todos              - Create new todo
+GET    /api/todos/:id          - Get single todo
+PUT    /api/todos/:id          - Update todo
+DELETE /api/todos/:id          - Delete todo
+PUT    /api/todos/:id/complete - Toggle completion status
+POST   /api/todos/:id/sync-calendar - Sync todo to Google Calendar
+```
+
+### Calendar (`/api/calendar`)
+
+```
+GET    /api/calendar/auth/google    - Get Google OAuth URL
+GET    /api/calendar/callback       - OAuth callback handler
+GET    /api/calendar/status         - Check connection status
+GET    /api/calendar/events         - Get all calendar events
+POST   /api/calendar/addEvent       - Create calendar event
+PUT    /api/calendar/updateEvent    - Update calendar event
+DELETE /api/calendar/deleteEvent    - Delete calendar event
+DELETE /api/calendar/disconnect     - Remove calendar connection
+```
+
+### AI Chat (`/api/ai`)
+
+```
+GET    /api/ai/health                      - Check AI service health
+POST   /api/ai/index                       - Index user data for RAG
+POST   /api/ai/chat                        - Chat with AI (streaming)
+POST   /api/ai/analyze-canvas              - Analyze canvas image
+GET    /api/ai/chat-history/:sessionId     - Get chat history
+GET    /api/ai/chat-sessions               - Get all chat sessions
+DELETE /api/ai/chat-sessions/:sessionId    - Delete chat session
+POST   /api/ai/save-message                - Save chat message
 ```
 
 ---
 
-## 7. Frontend Routes
+## 7. Frontend Routes & Pages
 
-```typescript
-// Public Routes
-/login           - Login page
-/register        - Register page
+### Public Routes (Unauthenticated)
 
-// Protected Routes (require authentication)
-/dashboard       - Project list + create
-/project/:id     - Canvas editor for project
-  - Query params: ?slide=1  (default to slide 1)
-
-// Future Routes
-/settings        - User settings
-/profile         - User profile
+```
+/login           - Login page (username + password)
+/register        - Registration page (username, email, password)
 ```
 
+### Protected Routes (Authenticated)
+
+```
+/dashboard       - Main hub: project gallery, search, calendar/todo widgets
+/projects/:id    - Infinite canvas workspace (tldraw editor)
+/calendar        - Google Calendar integration + event management
+/todos           - Todo list with create/edit/delete/sync
+/ai-chat         - AI Chat with RAG (project context-aware)
+```
+
+### Page Components Overview
+
+#### Dashboard (`/dashboard`)
+
+- **Project Gallery**: Grid view with search, create, delete
+- **Search Bar**: Real-time filter with highlighted results
+- **Mini Calendar Widget**: Shows Google Calendar events
+- **Todo Widget**: Quick todo view with completion toggle
+- **Project Creation Modal**: Overlay form with auto-focus
+
+#### Project Canvas (`/projects/:id`)
+
+- **tldraw Editor**: Full-featured infinite canvas
+- **Slide Management**: Create, navigate, rename, delete slides
+- **Auto-save**: Canvas state auto-saved on changes
+- **Screenshot Capture**: Generates preview images for slides
+- **Toolbar**: Drawing tools, shapes, text, images, eraser
+
+#### Calendar (`/calendar`)
+
+- **OAuth Connection**: Google Calendar OAuth 2.0 flow
+- **Event List**: Displays all calendar events
+- **Add Event**: Form to create new events
+- **Edit/Delete**: Manage existing events
+- **Connection Status**: Shows if calendar is connected
+
+#### Todos (`/todos`)
+
+- **Todo List**: All todos with status indicators
+- **Create Form**: Add new todos with description, priority, due date
+- **Completion Toggle**: Mark todos complete/incomplete
+- **Calendar Sync**: Sync individual todos to Google Calendar
+- **Delete**: Remove todos permanently
+
+#### AI Chat (`/ai-chat`)
+
+- **Streaming Chat**: Real-time AI responses with streaming
+- **Session Management**: Multiple chat sessions
+- **Canvas Analysis**: Upload/analyze canvas screenshots
+- **RAG Context**: AI has access to user's projects, todos, slides via indexing
+- **Message History**: Persistent chat history per session
+
 ---
 
-## 8. Key Technical Decisions
+## 8. Development Setup & Technical Decisions
 
-### Why tldraw?
+### Local Development Setup
 
-- **Production-ready**: Used by major companies
-- **Flexible**: Supports custom shapes and tools
-- **Performant**: Handles large canvases smoothly
-- **JSON Export**: Easy to serialize to MongoDB
-- **Open Source**: Free for personal projects
+**Prerequisites:**
 
-### Why Multiple Slides vs. Single Canvas?
+- Node.js v18+ (for frontend + backend)
+- Python 3.11+ (for AI service)
+- Supabase account (free tier)
+- Google Cloud Console project (for Calendar + Gemini APIs)
 
-- **Organization**: Natural day-by-day progression
-- **Performance**: Smaller canvas states = faster load
-- **Mental Model**: Matches notebook/presentation metaphor
-- **History**: Can see project evolution over time
+**Environment Variables:**
 
-### Why Supabase (PostgreSQL)?
-
-- **Real-time Features**: Built-in real-time subscriptions (future enhancement)
-- **Easy Setup**: Generous free tier with great developer experience
-- **JSONB Support**: Perfect for storing canvas state as JSON
-- **Built-in Auth**: Can leverage Supabase Auth if needed in future
-- **Learning Value**: Modern BaaS platform experience
-
-### Why Dark Theme Default?
-
-- **Modern Aesthetic**: Matches design tools (Figma, VS Code)
-- **Reduced Eye Strain**: Better for long sessions
-- **Canvas Contrast**: White/colored shapes pop on dark background
-- **Professional**: Looks polished and intentional
-
----
-
-## 9. Development Workflow
-
-### Daily Development Cycle
-
-**Morning (Planning):**
-
-1. Review current phase tasks
-2. Pick 2-3 tasks for the day
-3. Write failing tests (if applicable)
-
-**Afternoon (Implementation):**
-4. Implement backend endpoint
-5. Test with Postman/Thunder Client
-6. Implement frontend component
-7. Connect to API and test in browser
-
-**Evening (Polish):**
-8. Add error handling
-9. Style component with Tailwind
-10. Commit with descriptive message
-11. Update blueprint with progress
-
-### Git Workflow
+**Backend (`server/.env`):**
 
 ```bash
-# Feature branches
-git checkout -b feature/project-crud
-git commit -m "feat: add project CRUD endpoints"
-git push origin feature/project-crud
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+SUPABASE_URL=https://[PROJECT].supabase.co
+SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
+JWT_SECRET=[YOUR_JWT_SECRET]
+PORT=5000
 
-# Merge to main after testing
-git checkout main
-git merge feature/project-crud
+# Google Calendar API OAuth
+GOOGLE_CLIENT_ID=[YOUR_CLIENT_ID]
+GOOGLE_CLIENT_SECRET=[YOUR_CLIENT_SECRET]
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/calendar/callback
 ```
 
-### Testing Strategy
+**AI Service (`ai_services/.env`):**
 
-**Manual Testing:**
+```bash
+GOOGLE_API_KEY=[YOUR_GEMINI_API_KEY]
+SUPABASE_URL=https://[PROJECT].supabase.co
+SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
+```
 
-- Test each API endpoint with Thunder Client
-- Test each UI flow in browser
-- Test auth flow end-to-end
-- Test canvas save/load functionality
+**Frontend (`client/.env`):**
 
-**Automated Testing (Phase 6):**
+```bash
+VITE_API_URL=http://localhost:5000
+VITE_AI_API_URL=http://localhost:8000
+```
 
-- Backend: Jest + Supertest
-- Frontend: React Testing Library
-- E2E: Playwright (optional)
+### Running the Application
 
----
+**Terminal 1 - Backend (Express):**
 
-## 10. Success Metrics
+```bash
+cd server
+npm install
+node server.js
+# Runs on http://localhost:5000
+```
 
-### Technical Metrics
+**Terminal 2 - AI Service (FastAPI):**
 
-- **Canvas Save Time**: < 500ms for typical canvas
-- **Page Load Time**: < 2s for dashboard
-- **Canvas Load Time**: < 1s to render saved state
-- **API Latency**: P95 < 300ms
-- **Database Queries**: Optimized with Supabase indexes
+```bash
+cd ai_services
+uv run
+```
 
-### User Experience Metrics
+**Terminal 3 - Frontend (Vite):**
 
-- **Time to First Canvas**: < 30 seconds from signup
-- **Auto-save Reliability**: 100% success rate
-- **Canvas Responsiveness**: 60 FPS during drawing
-- **Mobile Usability**: Basic functionality works on phone
-
-### Portfolio Impact
-
-- "Built visual project tracker with **infinite canvas** using React + tldraw"
-- "Implemented **real-time canvas persistence** to Supabase PostgreSQL"
-- "Designed **glassmorphism UI** with Tailwind CSS"
-- "Deployed full-stack app with **Supabase + Express** to Vercel + Render (free tier)"
-
----
-
-## 11. Future Enhancements (Post-MVP)
-
-### Phase 7: Advanced Features
-
-- [ ] Collaboration (share projects, real-time cursors)
-- [ ] Templates (pre-built canvas layouts)
-- [ ] Export (PDF, PNG, SVG)
-- [ ] Version history (time-travel through canvas states)
-- [ ] Tags and categories for projects
-- [ ] Full-text search across all canvases
-
-### Phase 8: AI Integration
-
-- [ ] AI-powered canvas suggestions
-- [ ] Automatic organization of shapes
-- [ ] Text-to-shape generation
-- [ ] Smart connectors between elements
+```bash
+cd client
+npm install
+npm run dev
+# Runs on http://localhost:5173
+```
 
 ---
 
-## 12. Risk Mitigation
+## 9. Deployment & Performance
 
-| Risk                                      | Impact | Mitigation                                          |
-| ----------------------------------------- | ------ | --------------------------------------------------- |
-| tldraw learning curve                     | Medium | Follow official docs, use examples, join Discord    |
-| Large canvas states (Supabase row limits) | Medium | Compress JSON, paginate slides, lazy load           |
-| Free tier limitations                     | Low    | Monitor usage, optimize queries, cache aggressively |
-| Deployment complexity                     | Low    | Use Docker for local dev, document deployment steps |
+### Current Deployment Status
+
+**Development Mode:** All 3 services run locally
+
+- Frontend: `http://localhost:5173` (Vite dev server)
+- Backend: `http://localhost:5000` (Node.js Express)
+- AI Service: `http://localhost:8000` (FastAPI + Uvicorn)
+
+**Production Deployment:** Not yet configured
+
+**Recommended Deployment Stack:**
+
+- Frontend: Vercel (automatic from GitHub)
+- Backend: Railway / Render (Node.js support)
+- AI Service: Railway / Render (Python support)
+- Database: Supabase (managed PostgreSQL)
+
+### Performance Characteristics
+
+**Canvas Performance:**
+
+- tldraw handles 1000+ shapes smoothly
+- Auto-save debounced (prevents excessive DB writes)
+- Screenshot generation async (doesn't block UI)
+
+**Search Performance:**
+
+- Client-side filtering (instant results for <100 projects)
+- Highlight function uses regex (efficient for small datasets)
+
+**AI Chat Performance:**
+
+- Streaming responses (perceived latency reduced)
+- RAG indexing asynchronous (doesn't block chat)
+- ChromaDB vector search < 100ms
+
+**Database Optimization:**
+
+- Indexes on foreign keys (user_id, project_id, session_id)
+- Cascade deletes (prevent orphaned records)
+- TIMESTAMPTZ for proper timezone handling
 
 ---
 
-## 14. Timeline Summary
+---
 
-**Total Project Duration**: 4-5 weeks
+## 10. Lessons Learned & Best Practices
 
-- **Week 1**: ✅ Authentication & Infrastructure (DONE)
-- **Week 2**: 🔄 Project Management + Canvas Integration (CURRENT)
-- **Week 3**: Slides System + Basic Features
-- **Week 4**: Polish + UX Improvements
+### Architecture Decisions
+
+✅ **What Worked Well:**
+
+- 3-tier separation (React → Express → FastAPI) keeps concerns separated
+- Supabase PostgreSQL excellent developer experience
+- JWT authentication simple and effective (30-day tokens)
+- tldraw integration straightforward with good documentation
+- Glassmorphism design creates professional look with minimal effort
+- Modal patterns cleaner than inline forms
+
+## 12. Project Summary
+
+**Selfish** is a fully functional visual productivity platform combining:
+
+- **Infinite Canvas Projects** (tldraw)
+- **Todo Management** with calendar sync
+- **Google Calendar Integration** (OAuth 2.0)
+- **AI Chat with RAG** (Groq + ChromaDB)
+- **Modern Glassmorphic UI**
+
+**Project Value:**
+
+- Demonstrates full-stack development (React + Node + Python)
+- Shows integration skills (Google APIs, Supabase, AI services)
+- Portfolio piece showcasing modern tech stack
+- Real-world application of RAG/vector databases
+- Clean, professional design aesthetic
+
+---
+
+**Last Updated:** [Current Date]**Project Status:** ✅ Feature Complete - Ready for Deployment**Documentation Status:** ✅ Up to Date
+
 - **Week 5**: Deployment + Documentation
-
-**Minimum Viable Product**: End of Week 3
-**Portfolio Ready**: End of Week 4
-**Fully Polished**: End of Week 5
 
 ---
 
@@ -725,29 +940,6 @@ git merge feature/project-crud
 - [React Router v6](https://reactrouter.com)
 - [Tailwind CSS](https://tailwindcss.com/docs)
 
-### Example Projects
-
-- [tldraw Examples](https://github.com/tldraw/tldraw/tree/main/apps)
-- [Excalidraw](https://github.com/excalidraw/excalidraw) - Similar concept
-
-### Design Inspiration
-
-- Function Health (glassmorphism, dark theme)
-- Notion (project organization)
-- Figma (canvas interactions)
-
----
-
 ## Conclusion
 
 **Selfish** combines visual freedom with persistent cloud storage, creating a unique project tracking experience. The phased approach ensures steady progress from working authentication to a fully-featured canvas editor.
-
-**Key Success Factors:**
-
-1. Build incrementally (auth → projects → canvas → slides)
-2. Test each component thoroughly before moving on
-3. Keep UI consistent with dark glassmorphism theme
-4. Focus on canvas performance and reliability
-5. Document as you build
-
-**Start Now:** Complete Phase 2 (Project CRUD) within 2-3 days, then move to canvas integration. The foundation is solid—time to build the unique canvas experience!
