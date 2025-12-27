@@ -56,15 +56,16 @@ Individuals struggle with visual project planning and daily tracking:
            ▼                      ▼
 ┌────────────────────┐   ┌──────────────────────────────┐
 │  AUTH MIDDLEWARE   │   │  AI SERVICE (FastAPI/Python) │
-│  • JWT Verify      │   │  • RAG (ChromaDB)            │
+│  • JWT Verify      │   │  • RAG (pgvector)            │
 │  • User Context    │   │  • Groq LLM                  │
-└────────────────────┘   │  • Canvas Analysis           │
+└────────────────────┘   │  • Gemini Embeddings         │
+                         │  • Canvas Analysis           │
                          └──────────────────────────────┘
            │  
            ▼  
 ┌─────────────────────────────────────────────────────────┐
-│                DATABASE (Supabase PostgreSQL)           │
-│  • users • projects • slides • todos                    │
+│          DATABASE (Supabase PostgreSQL + pgvector)      │
+│  • users • projects • slides • todos • embeddings       │
 │  • calendar_tokens • chat_sessions • chat_messages      │
 └─────────────────────────────────────────────────────────┘
            │
@@ -99,8 +100,9 @@ Individuals struggle with visual project planning and daily tracking:
 **AI Service (Python):**
 
 - FastAPI (async web framework)
-- Groq API  AI (LLM)
-- ChromaDB (vector database for RAG)
+- Groq API (LLM - llama-3.3-70b-versatile, llama-4-scout for vision)
+- Supabase pgvector (vector database for RAG)
+- Gemini text-embedding-004 (768-dimensional embeddings)
 - Supabase client (data retrieval)
 - Pillow (image processing)
 
@@ -342,10 +344,13 @@ DELETE /api/calendar/disconnect     - Remove calendar connection
 
 - **Node.js Backend**: API proxy to Python AI service
 - **Python AI Service** (FastAPI):
-  - ChromaDB vector store
-  - Groq API AI (LLM)
-  - RAG (Retrieval-Augmented Generation)
-  - Canvas image analysis
+  - Supabase pgvector (persistent vector store with HNSW indexes)
+  - Gemini text-embedding-004 (768-dimensional embeddings)
+  - Groq API (LLM)
+  - Hybrid RAG: Slides with semantic search + Projects/Todos as direct context
+  - Smart project name detection for automatic filtering
+  - History-aware query optimization
+  - Canvas image analysis with vision models
 
 **Database Schema:**
 
@@ -636,6 +641,158 @@ CREATE TABLE chat_messages (
 CREATE INDEX idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at DESC);
 ```
+
+### Embeddings Table (Vector Store)
+
+```sql
+-- Enable pgvector extension (run once)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Embeddings table for RAG semantic search
+CREATE TABLE embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  document_type TEXT NOT NULL CHECK (document_type IN ('slide')),
+  document_id UUID NOT NULL,
+  text_content TEXT NOT NULL,
+  embedding vector(768),  -- Gemini text-embedding-004 dimensions
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(document_type, document_id)
+);
+
+-- Indexes for performance
+CREATE INDEX idx_embeddings_user_id ON embeddings(user_id);
+CREATE INDEX idx_embeddings_vector ON embeddings USING hnsw (embedding vector_cosine_ops);  -- HNSW for fast similarity search
+CREATE INDEX idx_embeddings_user_type ON embeddings(user_id, document_type);
+
+-- RPC function for vector similarity search with user isolation
+CREATE OR REPLACE FUNCTION search_embeddings(
+  query_embedding vector(768),
+  query_user_id UUID,
+  match_count INT DEFAULT 5,
+  filter_project_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  document_type TEXT,
+  document_id UUID,
+  text_content TEXT,
+  metadata JSONB,
+  similarity FLOAT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    e.id,
+    e.document_type,
+    e.document_id,
+    e.text_content,
+    e.metadata,
+    1 - (e.embedding <=> query_embedding) AS similarity
+  FROM embeddings e
+  WHERE e.user_id = query_user_id
+    AND (filter_project_id IS NULL OR (e.metadata->>'project_id')::uuid = filter_project_id)
+  ORDER BY e.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- RPC function for upserting embeddings
+CREATE OR REPLACE FUNCTION upsert_embedding(
+  p_user_id UUID,
+  p_document_type TEXT,
+  p_document_id UUID,
+  p_text_content TEXT,
+  p_embedding vector(768),
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result_id UUID;
+BEGIN
+  INSERT INTO embeddings (user_id, document_type, document_id, text_content, embedding, metadata)
+  VALUES (p_user_id, p_document_type, p_document_id, p_text_content, p_embedding, p_metadata)
+  ON CONFLICT (document_type, document_id)
+  DO UPDATE SET
+    text_content = EXCLUDED.text_content,
+    embedding = EXCLUDED.embedding,
+    metadata = EXCLUDED.metadata,
+    updated_at = NOW()
+  RETURNING id INTO result_id;
+  
+  RETURN result_id;
+END;
+$$;
+
+-- RPC function for deleting embeddings by document
+CREATE OR REPLACE FUNCTION delete_document_embeddings(
+  p_document_type TEXT,
+  p_document_id UUID
+)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  deleted_count INT;
+BEGIN
+  DELETE FROM embeddings
+  WHERE document_type = p_document_type AND document_id = p_document_id;
+  
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$;
+
+-- Row-Level Security (RLS) for user isolation
+ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own embeddings"
+  ON embeddings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own embeddings"
+  ON embeddings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own embeddings"
+  ON embeddings FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own embeddings"
+  ON embeddings FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Trigger to auto-delete embeddings when slides are deleted
+CREATE OR REPLACE FUNCTION delete_slide_embeddings()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  DELETE FROM embeddings
+  WHERE document_type = 'slide' AND document_id = OLD.id;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER trigger_delete_slide_embeddings
+  BEFORE DELETE ON slides
+  FOR EACH ROW
+  EXECUTE FUNCTION delete_slide_embeddings();
+```
+
+**RAG Implementation Notes:**
+
+- **Hybrid Approach**: Slides use embeddings for semantic search; Projects/Todos sent as direct context (no embeddings)
+- **Smart Filtering**: Automatically detects project names in queries and filters slides accordingly
+- **User Isolation**: RLS policies ensure users only access their own embeddings
+- **Performance**: HNSW index enables sub-50ms vector similarity searches
+- **Persistence**: Unlike in-memory ChromaDB, all embeddings survive service restarts
 
 ---
 

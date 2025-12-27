@@ -4,11 +4,9 @@ Handles fetching user data, creating embeddings, and building context for AI cha
 """
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from supabase import create_client, Client
 from google import genai
-import chromadb
-from chromadb.config import Settings
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -22,12 +20,13 @@ class RAGService:
     RAG Service for Selfish AI Chatbot
     - Fetches user data from Supabase
     - Creates embeddings using Gemini
-    - Stores embeddings in ChromaDB
+    - Stores slide embeddings in Supabase pgvector
+    - Sends projects/todos as direct context
     - Retrieves relevant context for queries
     """
     
     def __init__(self):
-        """Initialize RAG service with Supabase and ChromaDB clients"""
+        """Initialize RAG service with Supabase client"""
         # Validate environment variables
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
@@ -46,26 +45,7 @@ class RAGService:
         # Initialize Gemini client for embeddings
         self.genai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         
-        # Initialize ChromaDB (in-memory for now, will persist later)
-        self.chroma_client = chromadb.Client(Settings(
-            anonymized_telemetry=False,
-            allow_reset=True
-        ))
-        
-        # Create collection for user data embeddings
-        try:
-            self.collection = self.chroma_client.get_or_create_collection(
-                name="selfish_user_data",
-                metadata={"description": "User projects, slides, todos, and calendar data"}
-            )
-        except Exception as e:
-            print(f"Error creating ChromaDB collection: {e}")
-            # Reset and try again
-            self.chroma_client.reset()
-            self.collection = self.chroma_client.create_collection(
-                name="selfish_user_data",
-                metadata={"description": "User projects, slides, todos, and calendar data"}
-            )
+        print("✅ RAG Service initialized with Supabase pgvector")
     
     
     def fetch_user_data(self, user_id: str) -> Dict[str, Any]:
@@ -143,40 +123,84 @@ class RAGService:
             return [0.0] * 768  # text-embedding-004 dimension
     
     
-    def prepare_documents_for_embedding(self, user_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def fetch_direct_context(self, user_id: str) -> str:
         """
-        Convert user data into documents ready for embedding
+        Fetch projects and todos directly as formatted text context (no embeddings)
+        
+        This is part of the hybrid approach:
+        - Slides: Use semantic search with embeddings (complex visual content)
+        - Projects/Todos: Send directly as context (small structured data)
+        
+        Args:
+            user_id: UUID of the user
+            
+        Returns:
+            Formatted string with all projects and todos
+        """
+        try:
+            context_parts = []
+            
+            # Fetch ALL projects for this user
+            projects_response = self.supabase.table("projects").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            projects = projects_response.data if projects_response.data else []
+            
+            # Fetch ALL todos for this user
+            todos_response = self.supabase.table("todos").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            todos = todos_response.data if todos_response.data else []
+            
+            # Format projects
+            if projects:
+                context_parts.append("=== USER'S PROJECTS ===")
+                for project in projects:
+                    project_text = f"Project: {project.get('title', 'Untitled')}\n"
+                    project_text += f"Created: {project.get('created_at', 'Unknown')}\n"
+                    project_text += f"ID: {project.get('id', '')}\n"
+                    context_parts.append(project_text)
+            
+            # Format todos
+            if todos:
+                context_parts.append("=== USER'S TODOS ===")
+                for todo in todos:
+                    todo_text = f"Todo: {todo.get('title', 'Untitled')}\n"
+                    if todo.get('description'):
+                        todo_text += f"Description: {todo.get('description')}\n"
+                    todo_text += f"Priority: {todo.get('priority', 'medium')}\n"
+                    todo_text += f"Status: {todo.get('status', 'pending')}\n"
+                    if todo.get('due_date'):
+                        todo_text += f"Due Date: {todo.get('due_date')}\n"
+                    if todo.get('calendar_event_id'):
+                        todo_text += "Calendar: Synced\n"
+                    context_parts.append(todo_text)
+            
+            # Combine all context
+            full_context = "\n".join(context_parts)
+            
+            print(f"📊 Fetched direct context: {len(projects)} projects, {len(todos)} todos")
+            return full_context
+            
+        except Exception as e:
+            print(f"Error fetching direct context: {e}")
+            return ""
+    
+    
+    def prepare_documents_for_embedding(self, user_data: Dict[str, Any], user_id: str) -> List[Dict[str, Any]]:
+        """
+        Convert slides into documents ready for embedding
+        
+        Hybrid Approach:
+        - Slides: Create embeddings for semantic search (rich visual content)
+        - Projects/Todos: Sent as direct context (handled by fetch_direct_context)
         
         Args:
             user_data: Dictionary from fetch_user_data()
+            user_id: User UUID to add to metadata for filtering
             
         Returns:
-            List of documents with text, metadata, and IDs
+            List of slide documents with text, metadata, and IDs
         """
         documents = []
         
-        # Process projects
-        for project in user_data.get("projects", []):
-            doc_text = f"Project: {project.get('title', 'Untitled')}\n"
-            doc_text += f"Created: {project.get('created_at', 'Unknown')}\n"
-            doc_text += f"Project ID: {project.get('id', 'Unknown')}"
-            
-            # Filter out None values from metadata
-            metadata = {
-                "type": "project",
-                "project_id": str(project.get("id", "")),
-                "title": str(project.get("title", "Untitled")),
-            }
-            if project.get("created_at"):
-                metadata["created_at"] = str(project.get("created_at"))
-            
-            documents.append({
-                "id": f"project_{project.get('id')}",
-                "text": doc_text,
-                "metadata": metadata
-            })
-        
-        # Process slides
+        # Process ONLY slides (projects/todos handled by fetch_direct_context)
         for slide in user_data.get("slides", []):
             # Prefer AI-generated description (stored when slide was saved)
             ai_description = slide.get('description', '')
@@ -193,47 +217,22 @@ class RAGService:
                 # Fallback: just note that visual content exists
                 doc_text += "Content: Visual canvas content (no description available)\n"
                 
-            # Minimal metadata
+            # Metadata for filtering and context
             metadata = {
                 "type": "slide",
+                "user_id": user_id,  # CRITICAL: For user-scoped queries
                 "slide_id": str(slide.get("id", "")),
                 "name": str(slide.get("name", "Untitled Slide")),
             }
             if slide.get("screenshot_url"):
                 metadata["screenshot_url"] = str(slide.get("screenshot_url"))
             metadata["has_description"] = bool(ai_description)
+            # Add project_id to enable project-level filtering
+            if slide.get("project_id"):
+                metadata["project_id"] = str(slide.get("project_id"))
                 
             documents.append({
                 "id": f"slide_{slide.get('id')}",
-                "text": doc_text,
-                "metadata": metadata
-            })
-        # Process todos
-        for todo in user_data.get("todos", []):
-            doc_text = f"Todo: {todo.get('title', 'Untitled Todo')}\n"
-            if todo.get('description'):
-                doc_text += f"Description: {todo.get('description')}\n"
-            doc_text += f"Priority: {todo.get('priority', 'medium')}\n"
-            doc_text += f"Status: {todo.get('status', 'pending')}\n"
-            if todo.get('due_date'):
-                doc_text += f"Due Date: {todo.get('due_date')}\n"
-            doc_text += f"Created: {todo.get('created_at', 'Unknown')}"
-            
-            # Filter out None values from metadata
-            metadata = {
-                "type": "todo",
-                "todo_id": str(todo.get("id", "")),
-                "title": str(todo.get("title", "Untitled Todo")),
-                "priority": str(todo.get("priority", "medium")),
-                "status": str(todo.get("status", "pending")),
-            }
-            if todo.get("due_date"):
-                metadata["due_date"] = str(todo.get("due_date"))
-            if todo.get("created_at"):
-                metadata["created_at"] = str(todo.get("created_at"))
-            
-            documents.append({
-                "id": f"todo_{todo.get('id')}",
                 "text": doc_text,
                 "metadata": metadata
             })
@@ -243,7 +242,11 @@ class RAGService:
     
     def index_user_data(self, user_id: str) -> Dict[str, Any]:
         """
-        Fetch user data and create embeddings in ChromaDB
+        Fetch user data and create slide embeddings in Supabase pgvector
+        
+        Hybrid Approach:
+        - Slides: Indexed with embeddings for semantic search
+        - Projects/Todos: Sent as direct context (no indexing needed)
         
         Args:
             user_id: UUID of the user
@@ -252,55 +255,75 @@ class RAGService:
             Dictionary with indexing results
         """
         try:
-            # Fetch user data
+            print(f"📊 Starting indexing for user: {user_id}")
+            
+            # Fetch user data from Supabase
             user_data = self.fetch_user_data(user_id)
             
-            # Prepare documents
-            documents = self.prepare_documents_for_embedding(user_data)
+            # Prepare slide documents with user_id in metadata
+            documents = self.prepare_documents_for_embedding(user_data, user_id)
             
             if not documents:
                 return {
                     "success": True,
-                    "message": "No data to index",
-                    "indexed_count": 0
+                    "message": "No slides to index",
+                    "indexed_count": 0,
+                    "breakdown": {
+                        "slides": 0
+                    }
                 }
             
-            # Create embeddings and add to ChromaDB
-            texts = [doc["text"] for doc in documents]
-            ids = [doc["id"] for doc in documents]
-            metadatas = [doc["metadata"] for doc in documents]
+            print(f"📄 Prepared {len(documents)} slides for embedding")
             
-            # Create embeddings for all documents
-            embeddings = []
-            for text in texts:
-                embedding = self.create_embedding(text)
-                if embedding:
-                    embeddings.append(embedding)
-                else:
-                    # Use zero vector if embedding fails
-                    embeddings.append([0.0] * 768)  # text-embedding-004 dimension
+            # Process each slide: create embedding and upsert to Supabase
+            indexed_count = 0
+            skipped_count = 0
             
-            # Add to ChromaDB
-            self.collection.add(
-                ids=ids,
-                documents=texts,
-                embeddings=embeddings,
-                metadatas=metadatas
-            )
+            for doc in documents:
+                try:
+                    # Parse slide ID (format: "slide_uuid")
+                    doc_type, doc_id = doc["id"].split("_", 1)
+                    
+                    # Create embedding for slide description
+                    embedding = self.create_embedding(doc["text"])
+                    
+                    # Skip if embedding failed
+                    if not embedding or embedding == [0.0] * 768:
+                        print(f"⚠️  Skipping {doc['id']}: embedding creation failed")
+                        skipped_count += 1
+                        continue
+                    
+                    # Upsert to Supabase using RPC function
+                    self.supabase.rpc('upsert_embedding', {
+                        'p_user_id': user_id,
+                        'p_document_type': doc_type,
+                        'p_document_id': doc_id,
+                        'p_text_content': doc["text"],
+                        'p_embedding': embedding,
+                        'p_metadata': doc["metadata"]
+                    }).execute()
+                    
+                    indexed_count += 1
+                    
+                except Exception as e:
+                    print(f"❌ Error indexing {doc.get('id', 'unknown')}: {e}")
+                    skipped_count += 1
+                    continue
+            
+            print(f"✅ Indexed {indexed_count}/{len(documents)} slides (skipped {skipped_count})")
             
             return {
                 "success": True,
-                "message": f"Indexed {len(documents)} documents",
-                "indexed_count": len(documents),
+                "message": f"Indexed {indexed_count} slides",
+                "indexed_count": indexed_count,
                 "breakdown": {
-                    "projects": len(user_data.get("projects", [])),
-                    "slides": len(user_data.get("slides", [])),
-                    "todos": len(user_data.get("todos", []))
+                    "slides": indexed_count,
+                    "skipped": skipped_count
                 }
             }
             
         except Exception as e:
-            print(f"Error indexing user data: {e}")
+            print(f"❌ Error indexing user data: {e}")
             return {
                 "success": False,
                 "message": f"Error indexing data: {str(e)}",
@@ -308,23 +331,34 @@ class RAGService:
             }
     
     
-    def query_context(self, query: str, user_id: str, n_results: int = 5) -> Dict[str, Any]:
+    def query_context(
+        self, 
+        query: str, 
+        user_id: str, 
+        n_results: int = 5,
+        project_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Query ChromaDB for relevant context based on user query
+        Query Supabase pgvector for relevant slide context based on user query
+        
+        Hybrid Approach:
+        - Searches ONLY slides using semantic embeddings
+        - Projects/Todos fetched separately via fetch_direct_context()
         
         Args:
             query: User's question/query
-            user_id: UUID of the user (for filtering)
-            n_results: Number of relevant documents to retrieve
+            user_id: UUID of the user (enforces user isolation)
+            n_results: Number of relevant slides to retrieve
+            project_id: Optional project UUID to filter slides by project
             
         Returns:
-            Dictionary with relevant documents and metadata
+            Dictionary with relevant slide documents and metadata
         """
         try:
             # Create embedding for query
             query_embedding = self.create_embedding(query)
             
-            if not query_embedding:
+            if not query_embedding or query_embedding == [0.0] * 768:
                 return {
                     "success": False,
                     "message": "Failed to create query embedding",
@@ -332,29 +366,35 @@ class RAGService:
                     "context": ""
                 }
             
-            # Query ChromaDB
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=n_results
-            )
+            # Query Supabase pgvector using RPC function
+            response = self.supabase.rpc('search_embeddings', {
+                'query_embedding': query_embedding,
+                'query_user_id': user_id,
+                'match_count': n_results,
+                'filter_project_id': project_id if project_id else None
+            }).execute()
             
             # Build context string from results
             context_parts = []
             retrieved_docs = []
             
-            if results and results["documents"]:
-                for i, doc in enumerate(results["documents"][0]):
-                    metadata = results["metadatas"][0][i] if results["metadatas"] else {}
-                    distance = results["distances"][0][i] if results["distances"] else 0
+            if response.data:
+                for i, result in enumerate(response.data):
+                    doc_type = result.get('document_type', 'unknown')
+                    text_content = result.get('text_content', '')
+                    metadata = result.get('metadata', {})
+                    similarity = result.get('similarity', 0)
                     
-                    context_parts.append(f"--- Document {i+1} ({metadata.get('type', 'unknown')}) ---\n{doc}\n")
+                    context_parts.append(f"--- Slide {i+1} ({metadata.get('name', 'Unknown')}) ---\n{text_content}\n")
                     retrieved_docs.append({
-                        "text": doc,
+                        "text": text_content,
                         "metadata": metadata,
-                        "relevance_score": 1 - distance  # Convert distance to similarity
+                        "relevance_score": similarity
                     })
             
             context = "\n".join(context_parts)
+            
+            print(f"🔍 Query: '{query[:50]}...' → Found {len(retrieved_docs)} relevant slides")
             
             return {
                 "success": True,
@@ -365,7 +405,7 @@ class RAGService:
             }
             
         except Exception as e:
-            print(f"Error querying context: {e}")
+            print(f"❌ Error querying context: {e}")
             return {
                 "success": False,
                 "message": f"Error querying: {str(e)}",

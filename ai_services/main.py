@@ -12,7 +12,7 @@ import json
 
 # Import our services
 from rag import rag_service
-from llm_service import gemini_service
+from llm_service import llm_service
 
 load_dotenv()
 
@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     query: str
     history: Optional[List[Dict[str, str]]] = None
     stream: bool = True
+    project_id: Optional[str] = None  # Optional: Filter slides by specific project
 
 
 class IndexRequest(BaseModel):
@@ -89,7 +90,7 @@ async def health_check():
     return {
         "status": "healthy",
         "rag_service": "initialized",
-        "gemini_service": "initialized"
+        "llm_service": "initialized"
     }
 
 
@@ -108,27 +109,62 @@ async def index_user_data(request: IndexRequest):
         raise HTTPException(status_code=500, detail=f"Failed to index user data: {str(e)}")
 
 
-# CHAT ENDPOINT - WITH MULTIMODAL SUPPORT
+# CHAT ENDPOINT - WITH MULTIMODAL SUPPORT AND HYBRID RAG
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        # Pass to small LLM to check if image is needed or not and also get optimized query for RAG 
-        optimized_query, needs_image, needs_context = await gemini_service.optimize_query(request.query)
+        # Pass query AND history to optimizer for context-aware query reformulation
+        optimized_query, needs_image, needs_context = await llm_service.optimize_query(
+            request.query,
+            request.history  # History helps resolve references like "that project", "the second one"
+        )
         
-        # Only query RAG if context is needed
+        # Hybrid context approach: Direct context + Semantic search
         context = ""
+        context_result = {"documents": []}
+        
         if needs_context:
-            context_result = rag_service.query_context(
+            # PART 1: Fetch ALL projects and todos directly (no embeddings)
+            direct_context = rag_service.fetch_direct_context(request.user_id)
+            
+            # PART 2: Semantic search for relevant slides (top 5)
+            # Smart project filtering: If no project_id provided, try to extract from query
+            effective_project_id = request.project_id
+            if not effective_project_id:
+                # Try to infer project from query by matching against user's projects
+                user_data = rag_service.fetch_user_data(request.user_id)
+                projects = user_data.get("projects", [])
+                
+                query_lower = request.query.lower()
+                for project in projects:
+                    project_title = project.get("title", "").lower()
+                    # Check if project name appears in query (fuzzy match)
+                    if project_title and project_title in query_lower:
+                        effective_project_id = project.get("id")
+                        print(f"🎯 Detected project filter: '{project.get('title')}' ({effective_project_id})")
+                        break
+            
+            slide_context_result = rag_service.query_context(
                 query=optimized_query,
                 user_id=request.user_id,
-                n_results=5
+                n_results=5,
+                project_id=effective_project_id  # Use inferred or explicit project_id
             )
-            context = context_result.get("context", "")
-            if not context:
-                context = "No relevant data found in user's projects."
-            print(f"📄 Found {len(context_result.get('documents', []))} docs")
+            slide_context = slide_context_result.get("context", "")
+            context_result = slide_context_result  # For screenshot fetching
+            
+            # PART 3: Combine both contexts
+            context_parts = []
+            if direct_context:
+                context_parts.append(direct_context)
+            if slide_context:
+                context_parts.append("=== RELEVANT SLIDES ===")
+                context_parts.append(slide_context)
+            
+            context = "\n\n".join(context_parts) if context_parts else "No relevant data found in user's projects."
+            
+            print(f"📄 Context: {len(context_result.get('documents', []))} slides + direct data")
         else:
-            context_result = {"documents": []}
             print("📄 Skipping RAG (no context needed)")
         
         # Trigger visual if we found slides OR if we need image
@@ -136,13 +172,12 @@ async def chat(request: ChatRequest):
         
         print(f"📊 Query: '{request.query}'")
         print(f"🔍 Needs image: {needs_image}")
-        print(f"📄 Found {len(context_result.get('documents', []))} docs")
         
-        # Fetch screenshots
+        # Fetch screenshots from relevant slides
         images = []
         if needs_visual:
             try:
-                for doc in context_result.get("documents", [])[:3]:
+                for doc in context_result.get("documents", [])[:5]:
                     url = doc.get("metadata", {}).get("screenshot_url")
                     name = doc.get("metadata", {}).get("name", "Unknown")
                     print(f"   Doc: {name}, URL: {url}")
@@ -162,7 +197,7 @@ async def chat(request: ChatRequest):
  
         async def event_generator():
             try:
-                async for chunk in gemini_service.stream_chat_response(
+                async for chunk in llm_service.stream_chat_response(
                     query=request.query,
                     context=context,
                     history=request.history,
@@ -190,7 +225,7 @@ async def analyze_canvas(request: CanvasAnalysisRequest):
     try:
         # MODE 1: Generate description for DB storage (non-streaming)
         if request.generate_description:
-            result = await gemini_service.generate_slide_description(request.image_data)
+            result = await llm_service.generate_slide_description(request.image_data)
             
             # Parse TYPE and SUMMARY from response
             content_type = "unknown"
@@ -224,7 +259,7 @@ async def analyze_canvas(request: CanvasAnalysisRequest):
         
         async def event_generator():
             try:
-                async for chunk in gemini_service.stream_canvas_analysis(
+                async for chunk in llm_service.stream_canvas_analysis(
                     image_data=request.image_data, query=query, context=context
                 ):
                     yield f"data: {json.dumps({'chunk': chunk})}\n\n"

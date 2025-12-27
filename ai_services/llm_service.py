@@ -12,7 +12,7 @@ from typing import Tuple
 load_dotenv()
 
 
-class GeminiChatService:
+class LLMChatService:
     """
     LLM Chat Service for Selfish AI (using Groq)
     - Support for RAG context integration
@@ -125,10 +125,16 @@ Instructions:
 
     async def optimize_query(
         self,
-        query: str
+        query: str,
+        history: Optional[List[Dict[str, str]]] = None
     ) -> Tuple[str, bool, bool]:
         """
         Optimize user query for RAG and determine if visual context is needed.
+        Uses conversation history to understand contextual references.
+        
+        Args:
+            query: Current user query
+            history: Previous conversation messages for context
         
         Returns:
             Tuple of (optimized_query, needs_image, needs_context)
@@ -137,8 +143,18 @@ Instructions:
             raise RuntimeError("Groq client not initialized")
         
         try:
+            # Build conversation context from history (last 3 messages for efficiency)
+            history_context = ""
+            if history and len(history) > 0:
+                recent_history = history[-3:] if len(history) > 3 else history
+                history_context = "\n\nCONVERSATION HISTORY (for context):\n"
+                for msg in recent_history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    history_context += f"{role.upper()}: {content}\n"
+            
             prompt = f"""You are a query analyzer for a project management AI assistant.
-
+{history_context}
 TASK 1: Determine if user data context is needed
 Answer YES if the query is about:
 - Projects, todos, tasks, slides, canvas, deadlines
@@ -153,12 +169,16 @@ Answer NO if the query is:
 - Chitchat or small talk
 
 TASK 2: Optimize the query for semantic search (only if context needed)
-- Extract key concepts and entities
-- Remove filler words
-- Keep project-related terms
+- Extract key concepts and entities from CURRENT query
+- Use conversation history to resolve references like "that project", "the second one", "it"
+- If history mentions specific projects/slides, include them in optimized query
+- Remove filler words but keep project-related context
+- Example: If history discussed "Website Redesign" and query is "What about the brainstorm one?", 
+  optimize to "brainstorm slides website redesign"
 
 TASK 3: Decide if visual context (canvas screenshots) would help
 Answer YES only if query specifically asks about visual content.
+Try to Say Yes more often for visual context if unsure.
 
 OUTPUT FORMAT (strictly follow this):
 NEEDS_CONTEXT: YES or NO
@@ -181,13 +201,20 @@ NEEDS_CONTEXT: YES
 OPTIMIZED: brainstorm slides canvas
 NEEDS_IMAGE: YES
 
-User Query: {query}
+With History:
+HISTORY: USER: Show me website project slides
+QUERY: What about the brainstorm one?
+NEEDS_CONTEXT: YES
+OPTIMIZED: brainstorm slides website project
+NEEDS_IMAGE: YES
+
+Current Query: {query}
 """
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_completion_tokens=100,
+                max_completion_tokens=200,
             )
             
             result = response.choices[0].message.content.strip()
@@ -292,4 +319,4 @@ User Query: {query}
 
 
 # Create singleton instance
-gemini_service = GeminiChatService()
+llm_service = LLMChatService()
