@@ -286,12 +286,14 @@ PUT    /api/todos/:id/link-calendar - Manually link todo to calendar event
 **Bidirectional Sync Features:**
 
 **Todo → Calendar:**
+
 - ✅ Creating todo with due date **automatically creates** calendar event (1-hour duration)
 - ✅ Updating todo title/due date **automatically updates** calendar event
 - ✅ Deleting todo **automatically deletes** calendar event
 - ✅ Removing due date **deletes** calendar event
 
 **Calendar → Todo:**
+
 - ✅ Creating calendar event **automatically creates** todo
 - ✅ Updating calendar event **automatically updates** linked todo
 - ✅ Deleting calendar event **automatically deletes** linked todo
@@ -351,6 +353,7 @@ DELETE /api/calendar/disconnect     - Remove calendar connection
 **Bidirectional Sync Features:**
 
 **Calendar → Todo:**
+
 - ✅ Creating calendar event **automatically creates** todo with:
   - Title = Event summary
   - Due date = Event start time
@@ -361,6 +364,7 @@ DELETE /api/calendar/disconnect     - Remove calendar connection
 - ✅ Deleting calendar event **automatically deletes** linked todo
 
 **Todo → Calendar:**
+
 - ✅ See section 3.4 for todo-to-calendar sync details
 
 **Core Features:**
@@ -1013,6 +1017,7 @@ GOOGLE_REDIRECT_URI=http://localhost:5000/api/calendar/callback
 
 ```bash
 GOOGLE_API_KEY=[YOUR_GEMINI_API_KEY]
+GROQ_API_KEY=[YOUR GROQ API KEY]
 SUPABASE_URL=https://[PROJECT].supabase.co
 SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
 ```
