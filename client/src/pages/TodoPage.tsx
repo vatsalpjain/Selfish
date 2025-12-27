@@ -337,9 +337,9 @@ export default function TodoPage() {
                                         }
                                         className="w-full px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                                     >
-                                        <option value="low">🟢 Low</option>
-                                        <option value="medium">🟡 Medium</option>
-                                        <option value="high">🔴 High</option>
+                                        <option value="low" className="bg-gray-800 text-white">🟢 Low</option>
+                                        <option value="medium" className="bg-gray-800 text-white">🟡 Medium</option>
+                                        <option value="high" className="bg-gray-800 text-white">🔴 High</option>
                                     </select>
                                 </div>
 
