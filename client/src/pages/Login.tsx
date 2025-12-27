@@ -25,23 +25,29 @@ export default function Login() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Video Background */}
-      <video
-        autoPlay
-        loop
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-      >
-        <source src="/mantis_bg.mp4" type="video/mp4" />
-      </video>
+  const fillDemoCredentials = () => {
+    setEmail("demo@gmail.com");
+    setPassword("demo");
+  };
 
-      {/* Dark Overlay for readability */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
+  return (
+    <div 
+      className="min-h-screen flex items-center justify-center bg-gray-900 p-6"
+      style={{
+        backgroundImage: 'url(/background.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </div>
 
       {/* Login Form Container */}
-      <div className="relative z-10 max-w-md w-full bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8">
+      <div className="relative max-w-md w-full bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8">
         {/* Logo/Title */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
@@ -49,6 +55,19 @@ export default function Login() {
           </h1>
           <p className="text-gray-300 text-sm">Welcome back! Login to continue</p>
         </div>
+
+        {/* Demo Account Button */}
+        <button
+          type="button"
+          onClick={fillDemoCredentials}
+          className="w-full mb-5 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 hover:border-blue-500/70 text-blue-300 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 group"
+          title="Auto-fill demo account credentials"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span className="font-medium">Use Demo Account</span>
+        </button>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Input */}

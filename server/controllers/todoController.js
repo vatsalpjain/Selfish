@@ -1,4 +1,9 @@
 import supabase from "../config/supabase.js";
+import { 
+    createCalendarEventHelper, 
+    updateCalendarEventHelper, 
+    deleteCalendarEventHelper 
+} from "./calenderController.js";
 
 // ============================================
 // GET ALL TODOS FOR LOGGED-IN USER
@@ -88,6 +93,48 @@ async function createTodo(req, res) {
 
         if (error) throw error;
 
+        // ============================================
+        // AUTO-SYNC TO GOOGLE CALENDAR
+        // ============================================
+        // If todo has a due date, automatically create calendar event
+        let calendarEventId = data.calendar_event_id;
+        
+        if (dueDate) {
+            console.log(`Todo has due date, attempting calendar sync for user ${req.user.id}`);
+            
+            // Calculate event end time (1 hour after start)
+            const startDate = new Date(dueDate);
+            const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour
+            
+            // Attempt to create calendar event
+            const calendarResult = await createCalendarEventHelper(
+                req.user.id,
+                title.trim(),
+                startDate.toISOString(),
+                endDate.toISOString()
+            );
+            
+            if (calendarResult.success) {
+                console.log(`✓ Calendar event created: ${calendarResult.eventId}`);
+                
+                // Update todo with calendar_event_id
+                const { data: updatedData, error: updateError } = await supabase
+                    .from("todos")
+                    .update({ calendar_event_id: calendarResult.eventId })
+                    .eq("id", data.id)
+                    .select()
+                    .single();
+                
+                if (!updateError) {
+                    calendarEventId = updatedData.calendar_event_id;
+                    console.log(`✓ Todo updated with calendar event ID`);
+                }
+            } else {
+                // Calendar sync failed (user may not have calendar connected)
+                console.log(`⚠ Calendar sync skipped: ${calendarResult.error}`);
+            }
+        }
+
         // Transform to camelCase for frontend
         const formattedTodo = {
             id: data.id,
@@ -97,7 +144,7 @@ async function createTodo(req, res) {
             priority: data.priority,
             status: data.status,
             dueDate: data.due_date,
-            calendarEventId: data.calendar_event_id,
+            calendarEventId: calendarEventId, 
             completedAt: data.completed_at,
             createdAt: data.created_at,
             updatedAt: data.updated_at,
@@ -163,7 +210,7 @@ async function updateTodo(req, res) {
         // First, verify the todo exists and user owns it
         const { data: existingTodo, error: fetchError } = await supabase
             .from("todos")
-            .select("user_id")
+            .select("*") // Select all fields to check calendar_event_id and current values
             .eq("id", req.params.id)
             .single();
 
@@ -199,6 +246,95 @@ async function updateTodo(req, res) {
 
         if (updateError) throw updateError;
 
+        // ============================================
+        // AUTO-SYNC TO GOOGLE CALENDAR
+        // ============================================
+        let calendarEventId = updatedTodo.calendar_event_id;
+        
+        // Check if title or dueDate was updated (need to sync to calendar)
+        const titleChanged = req.body.title !== undefined && req.body.title !== existingTodo.title;
+        const dueDateChanged = req.body.dueDate !== undefined && req.body.dueDate !== existingTodo.due_date;
+        
+        if (titleChanged || dueDateChanged) {
+            // Case 1: Todo has existing calendar event - UPDATE it
+            if (existingTodo.calendar_event_id && updatedTodo.due_date) {
+                console.log(`Updating calendar event ${existingTodo.calendar_event_id}`);
+                
+                const startDate = new Date(updatedTodo.due_date);
+                const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour
+                
+                const updateResult = await updateCalendarEventHelper(
+                    req.user.id,
+                    existingTodo.calendar_event_id,
+                    updatedTodo.title,
+                    startDate.toISOString(),
+                    endDate.toISOString()
+                );
+                
+                if (updateResult.success) {
+                    console.log(`✓ Calendar event updated`);
+                } else {
+                    console.log(`⚠ Calendar update failed: ${updateResult.error}`);
+                }
+            }
+            // Case 2: Todo has new due date but no calendar event - CREATE one
+            else if (!existingTodo.calendar_event_id && updatedTodo.due_date) {
+                console.log(`Creating new calendar event for todo ${updatedTodo.id}`);
+                
+                const startDate = new Date(updatedTodo.due_date);
+                const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour
+                
+                const createResult = await createCalendarEventHelper(
+                    req.user.id,
+                    updatedTodo.title,
+                    startDate.toISOString(),
+                    endDate.toISOString()
+                );
+                
+                if (createResult.success) {
+                    console.log(`✓ Calendar event created: ${createResult.eventId}`);
+                    
+                    // Update todo with calendar_event_id
+                    const { data: reUpdatedData, error: reUpdateError } = await supabase
+                        .from("todos")
+                        .update({ calendar_event_id: createResult.eventId })
+                        .eq("id", updatedTodo.id)
+                        .select()
+                        .single();
+                    
+                    if (!reUpdateError) {
+                        calendarEventId = reUpdatedData.calendar_event_id;
+                        console.log(`✓ Todo updated with calendar event ID`);
+                    }
+                } else {
+                    console.log(`⚠ Calendar sync skipped: ${createResult.error}`);
+                }
+            }
+            // Case 3: Due date was removed - DELETE calendar event
+            else if (existingTodo.calendar_event_id && !updatedTodo.due_date) {
+                console.log(`Deleting calendar event ${existingTodo.calendar_event_id}`);
+                
+                const deleteResult = await deleteCalendarEventHelper(
+                    req.user.id,
+                    existingTodo.calendar_event_id
+                );
+                
+                if (deleteResult.success) {
+                    console.log(`✓ Calendar event deleted`);
+                    
+                    // Remove calendar_event_id from todo
+                    await supabase
+                        .from("todos")
+                        .update({ calendar_event_id: null })
+                        .eq("id", updatedTodo.id);
+                    
+                    calendarEventId = null;
+                } else {
+                    console.log(`⚠ Calendar delete failed: ${deleteResult.error}`);
+                }
+            }
+        }
+
         // Transform to camelCase
         const formattedTodo = {
             id: updatedTodo.id,
@@ -208,7 +344,7 @@ async function updateTodo(req, res) {
             priority: updatedTodo.priority,
             status: updatedTodo.status,
             dueDate: updatedTodo.due_date,
-            calendarEventId: updatedTodo.calendar_event_id,
+            calendarEventId: calendarEventId, // Use updated value
             completedAt: updatedTodo.completed_at,
             createdAt: updatedTodo.created_at,
             updatedAt: updatedTodo.updated_at,
@@ -232,7 +368,7 @@ async function deleteTodo(req, res) {
         // First verify todo exists and user owns it
         const { data: existingTodo, error: fetchError } = await supabase
             .from("todos")
-            .select("user_id")
+            .select("*") // Select all fields to get calendar_event_id
             .eq("id", req.params.id)
             .single();
 
@@ -243,6 +379,25 @@ async function deleteTodo(req, res) {
         // SECURITY: Ensure user owns this todo
         if (existingTodo.user_id !== req.user.id) {
             return res.status(401).json({ error: "Not authorized to delete this todo" });
+        }
+
+        // ============================================
+        // DELETE LINKED CALENDAR EVENT (if exists)
+        // ============================================
+        if (existingTodo.calendar_event_id) {
+            console.log(`Deleting linked calendar event ${existingTodo.calendar_event_id}`);
+            
+            const deleteResult = await deleteCalendarEventHelper(
+                req.user.id,
+                existingTodo.calendar_event_id
+            );
+            
+            if (deleteResult.success) {
+                console.log(`✓ Calendar event deleted`);
+            } else {
+                console.log(`⚠ Calendar event delete failed: ${deleteResult.error}`);
+                // Continue with todo deletion even if calendar delete fails
+            }
         }
 
         // Perform deletion

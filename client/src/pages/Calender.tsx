@@ -43,6 +43,9 @@ export default function CalenderPage() {
     // filteredEvents: Computed array of events that match the search query
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Sync banner state
+    const [showSyncBanner, setShowSyncBanner] = useState(false);
+
     // Filter events based on search query (case-insensitive)
     // If search is empty, show all events. Otherwise, filter by title.
     const filteredEvents = searchQuery.trim() === ''
@@ -76,7 +79,16 @@ export default function CalenderPage() {
 
             if (res.data.connected) {
                 fetchEvents();
-            }
+                // Show sync banner on first visit when connected
+                const hasSeenBanner = localStorage.getItem('calendarSyncBannerSeen');
+                if (!hasSeenBanner) {
+                    setShowSyncBanner(true);
+                    // Auto-dismiss after 5 seconds
+                    setTimeout(() => {
+                        setShowSyncBanner(false);
+                        localStorage.setItem('calendarSyncBannerSeen', 'true');
+                    }, 5000);
+                }            }
         } catch (error) {
             setIsConnected(false);
         } finally {
@@ -295,14 +307,16 @@ export default function CalenderPage() {
                                     e.stopPropagation();
                                     openEditModal(event);
                                 }}
-                                className="text-[10px] px-1 py-0.5 bg-orange-500/30 text-orange-200 rounded truncate hover:bg-orange-500/50 transition-colors cursor-pointer group relative"
+                                className="text-[10px] px-1 py-0.5 bg-orange-500/30 text-orange-200 rounded truncate hover:bg-orange-500/50 transition-colors cursor-pointer group relative flex items-center gap-1"
                                 title={event.summary}
                             >
-                                {event.summary}
+                                {/* Todo Link Indicator */}
+                                <span className="text-blue-400" title="Synced with Todo">✓</span>
+                                <span className="flex-1 truncate">{event.summary}</span>
                                 <button
                                     onClick={(e) => handleDeleteEvent(event, e)}
-                                    className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 bg-red-500 text-white px-1 rounded text-[8px]"
-                                    title="Delete"
+                                    className="opacity-0 group-hover:opacity-100 bg-red-500 text-white px-1 rounded text-[8px] flex-shrink-0"
+                                    title="Delete (will also delete linked todo)"
                                 >
                                     ✕
                                 </button>
@@ -388,6 +402,48 @@ export default function CalenderPage() {
             {/* Main Content */}
             <main className="pt-24 px-6 pb-4">
                 <div className="max-w-6xl mx-auto">
+                    {/* Sync Info Banner - Only show when connected, auto-dismisses after 5s */}
+                    {isConnected && showSyncBanner && (
+                        <div className="bg-blue-500/10 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-4 mb-4 animate-fade-in">
+                            <div className="flex items-start gap-3">
+                                <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" 
+                                    fill="none" 
+                                    viewBox="0 0 24 24" 
+                                    stroke="currentColor"
+                                >
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={2} 
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                                    />
+                                </svg>
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-blue-300 mb-1">✓ Todo Sync Active</h3>
+                                    <p className="text-xs text-blue-200/80">
+                                        Calendar events automatically create todos. 
+                                        Updates sync both ways. 
+                                        Deleting an event also removes the linked todo.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowSyncBanner(false);
+                                        localStorage.setItem('calendarSyncBannerSeen', 'true');
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                                    title="Dismiss"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 shadow-2xl">
 
                         {!isConnected ? (

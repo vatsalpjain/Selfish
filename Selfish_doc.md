@@ -250,7 +250,7 @@ DELETE /api/slides/:id                 - Delete slide
 
 ### 3.4 Todo Management ✅ COMPLETE
 
-**Purpose**: Task tracking integrated with calendar
+**Purpose**: Task tracking with **bidirectional Google Calendar sync**
 
 **Database Schema:**
 
@@ -263,7 +263,7 @@ todos (
   priority TEXT CHECK (priority IN ('low', 'medium', 'high')),
   status TEXT CHECK (status IN ('pending', 'in-progress', 'completed')),
   due_date TIMESTAMP,
-  calendar_event_id TEXT,  -- Google Calendar event ID
+  calendar_event_id TEXT,  -- Google Calendar event ID (bidirectional link)
   completed_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -274,29 +274,52 @@ todos (
 
 ```
 GET    /api/todos              - Get all todos
-POST   /api/todos              - Create todo
+POST   /api/todos              - Create todo (auto-syncs to calendar if has due date)
 GET    /api/todos/:id          - Get single todo
-PUT    /api/todos/:id          - Update todo
-DELETE /api/todos/:id          - Delete todo
+PUT    /api/todos/:id          - Update todo (syncs changes to calendar event)
+DELETE /api/todos/:id          - Delete todo (deletes linked calendar event)
 PUT    /api/todos/:id/complete - Toggle completion status
-POST   /api/todos/:id/sync-calendar - Sync to Google Calendar
+GET    /api/todos/upcoming     - Get upcoming todos for dashboard widget
+PUT    /api/todos/:id/link-calendar - Manually link todo to calendar event
 ```
 
-**Features:**
+**Bidirectional Sync Features:**
+
+**Todo → Calendar:**
+- ✅ Creating todo with due date **automatically creates** calendar event (1-hour duration)
+- ✅ Updating todo title/due date **automatically updates** calendar event
+- ✅ Deleting todo **automatically deletes** calendar event
+- ✅ Removing due date **deletes** calendar event
+
+**Calendar → Todo:**
+- ✅ Creating calendar event **automatically creates** todo
+- ✅ Updating calendar event **automatically updates** linked todo
+- ✅ Deleting calendar event **automatically deletes** linked todo
+
+**Core Features:**
 
 - Priority levels (low/medium/high)
 - Status tracking (pending/in-progress/completed)
 - Due date with overdue detection
 - Filter by status
 - Inline editing
-- Calendar sync capability
+- Automatic calendar sync (no manual action required)
 - Dashboard widget
+- Visual sync status badges (SYNCED/NOT SYNCED)
+
+**Sync Implementation:**
+
+- Uses helper functions: `createCalendarEventHelper`, `updateCalendarEventHelper`, `deleteCalendarEventHelper`
+- Graceful error handling (sync failures don't block todo operations)
+- Console logging for debugging sync operations
+- Only syncs when calendar is connected
+- 1-hour event duration by default (start time = due date)
 
 ---
 
 ### 3.5 Calendar Integration ✅ COMPLETE
 
-**Purpose**: Google Calendar sync for events
+**Purpose**: Google Calendar sync with **bidirectional todo synchronization**
 
 **Database Schema:**
 
@@ -319,20 +342,45 @@ GET    /api/calendar/auth/google    - Get OAuth URL
 GET    /api/calendar/callback       - Handle OAuth callback
 GET    /api/calendar/status         - Check connection status
 GET    /api/calendar/events         - Get all events
-POST   /api/calendar/addEvent       - Create event
-PUT    /api/calendar/updateEvent    - Update event
-DELETE /api/calendar/deleteEvent    - Delete event
+POST   /api/calendar/addEvent       - Create event (auto-creates linked todo)
+PUT    /api/calendar/updateEvent    - Update event (updates linked todo)
+DELETE /api/calendar/deleteEvent    - Delete event (deletes linked todo)
 DELETE /api/calendar/disconnect     - Remove calendar connection
 ```
 
-**Features:**
+**Bidirectional Sync Features:**
+
+**Calendar → Todo:**
+- ✅ Creating calendar event **automatically creates** todo with:
+  - Title = Event summary
+  - Due date = Event start time
+  - Priority = "medium"
+  - Status = "pending"
+  - `calendar_event_id` = Event ID
+- ✅ Updating calendar event **automatically updates** linked todo (title + due date)
+- ✅ Deleting calendar event **automatically deletes** linked todo
+
+**Todo → Calendar:**
+- ✅ See section 3.4 for todo-to-calendar sync details
+
+**Core Features:**
 
 - OAuth 2.0 authentication
-- Token refresh on expiry
+- Automatic token refresh on expiry
 - Monthly calendar view
-- Create/Edit/Delete events
-- Event search
+- Create/Edit/Delete events with full CRUD
+- Event search functionality
 - Mini calendar widget on dashboard
+- Sync status indicators on calendar events
+- Auto-dismissing info banner (5 seconds, localStorage-based)
+
+**Sync Implementation:**
+
+- Uses helper functions shared with todo controller
+- Automatic todo creation when calendar event is created
+- Bidirectional updates for title and datetime changes
+- Security: User isolation enforced (only syncs user's own data)
+- Graceful fallback: Calendar operations succeed even if todo sync fails
 
 ---
 
@@ -470,9 +518,13 @@ POST   /analyze-canvas  - Canvas analysis with vision
 12. ✅ Google Calendar integration (OAuth 2.0)
 13. ✅ Calendar events CRUD
 14. ✅ Todo management system
-15. ✅ Todo-Calendar sync capability
-16. ✅ Mini calendar widget
-17. ✅ Todo widget on dashboard
+15. ✅ **Bidirectional Todo ↔ Calendar sync**
+16. ✅ **Auto-sync todos to calendar events**
+17. ✅ **Auto-sync calendar events to todos**
+18. ✅ Mini calendar widget
+19. ✅ Todo widget on dashboard
+20. ✅ **Sync status indicators (SYNCED/NOT SYNCED badges)**
+21. ✅ **Auto-dismissing info banners (5s timeout)**
 
 #### **Phase 5: AI Integration**
 
