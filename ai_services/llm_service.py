@@ -178,7 +178,10 @@ TASK 2: Optimize the query for semantic search (only if context needed)
 
 TASK 3: Decide if visual context (canvas screenshots) would help
 Answer YES only if query specifically asks about visual content.
-Try to Say Yes more often for visual context if unsure.
+Say yes if user is asking about project or slide related things.
+Try Saying Yes More Often to improve user experience.
+Try Saying Yes is if Unsure.
+Only Say NO if absolutely certain no visual context is needed.
 
 OUTPUT FORMAT (strictly follow this):
 NEEDS_CONTEXT: YES or NO
