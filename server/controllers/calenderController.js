@@ -98,6 +98,154 @@ const refreshTokenIfNeeded = async (userId) => {
     return null;
   }
 };
+
+// ============================================
+// HELPER: Create Calendar Event
+// ============================================
+// Reusable function to create a Google Calendar event
+// Used by: Todo creation, Direct event creation
+// Returns: { success: boolean, eventId?: string, error?: string }
+export const createCalendarEventHelper = async (userId, title, start, end) => {
+  try {
+    // Check if user has calendar connected and refresh token if needed
+    const tokenData = await refreshTokenIfNeeded(userId);
+    
+    if (!tokenData) {
+      return { success: false, error: 'Calendar not connected' };
+    }
+
+    // Set up OAuth2 client with refreshed credentials
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALLBACK_URL
+    );
+
+    oauth2Client.setCredentials({
+      access_token: tokenData.accessToken,
+      refresh_token: tokenData.refreshToken
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Create the calendar event
+    const event = await calendar.events.insert({
+      calendarId: 'primary',
+      resource: {
+        summary: title,
+        start: { 
+          dateTime: start,
+          timeZone: 'Asia/Kolkata'
+        },
+        end: { 
+          dateTime: end,
+          timeZone: 'Asia/Kolkata'
+        }
+      }
+    });
+
+    return { success: true, eventId: event.data.id };
+  } catch (error) {
+    console.error('Create calendar event helper error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================
+// HELPER: Update Calendar Event
+// ============================================
+// Reusable function to update an existing Google Calendar event
+// Used by: Todo updates
+// Returns: { success: boolean, error?: string }
+export const updateCalendarEventHelper = async (userId, eventId, title, start, end) => {
+  try {
+    // Check if user has calendar connected and refresh token if needed
+    const tokenData = await refreshTokenIfNeeded(userId);
+    
+    if (!tokenData) {
+      return { success: false, error: 'Calendar not connected' };
+    }
+
+    // Set up OAuth2 client with refreshed credentials
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALLBACK_URL
+    );
+
+    oauth2Client.setCredentials({
+      access_token: tokenData.accessToken,
+      refresh_token: tokenData.refreshToken
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Update the calendar event
+    await calendar.events.update({
+      calendarId: 'primary',
+      eventId: eventId,
+      resource: {
+        summary: title,
+        start: { 
+          dateTime: start,
+          timeZone: 'Asia/Kolkata'
+        },
+        end: { 
+          dateTime: end,
+          timeZone: 'Asia/Kolkata'
+        }
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Update calendar event helper error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================
+// HELPER: Delete Calendar Event
+// ============================================
+// Reusable function to delete a Google Calendar event
+// Used by: Todo deletion
+// Returns: { success: boolean, error?: string }
+export const deleteCalendarEventHelper = async (userId, eventId) => {
+  try {
+    // Check if user has calendar connected and refresh token if needed
+    const tokenData = await refreshTokenIfNeeded(userId);
+    
+    if (!tokenData) {
+      return { success: false, error: 'Calendar not connected' };
+    }
+
+    // Set up OAuth2 client with refreshed credentials
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALLBACK_URL
+    );
+
+    oauth2Client.setCredentials({
+      access_token: tokenData.accessToken,
+      refresh_token: tokenData.refreshToken
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Delete the calendar event
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId: eventId
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Delete calendar event helper error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 // ============================================
 
 
@@ -312,6 +460,37 @@ export const addEvent = async (req, res) => {
       }
     });
     
+    // ============================================
+    // AUTO-CREATE TODO FROM CALENDAR EVENT
+    // ============================================
+    // When user creates a calendar event, automatically create a corresponding todo
+    console.log(`Calendar event created, creating corresponding todo for user ${req.user.id}`);
+    
+    try {
+      const { data: newTodo, error: todoError } = await supabase
+        .from('todos')
+        .insert([{
+          user_id: req.user.id,
+          title: title,
+          due_date: start, // Use event start time as todo due date
+          priority: 'medium', // Default priority
+          status: 'pending', // Default status
+          calendar_event_id: event.data.id // Link to calendar event
+        }])
+        .select()
+        .single();
+      
+      if (todoError) {
+        console.error(`⚠ Failed to create todo: ${todoError.message}`);
+        // Don't fail the calendar event creation if todo fails
+      } else {
+        console.log(`✓ Todo created and linked to calendar event`);
+      }
+    } catch (todoCreationError) {
+      console.error(`⚠ Todo creation error: ${todoCreationError.message}`);
+      // Don't fail the calendar event creation if todo fails
+    }
+    
     res.json({
       connected: true,
       event: event.data
@@ -370,6 +549,44 @@ export const updateEvent = async (req, res) => {
       }
     });
     
+    // ============================================
+    // AUTO-UPDATE LINKED TODO
+    // ============================================
+    // When user updates a calendar event, automatically update the linked todo
+    console.log(`Calendar event updated, syncing to linked todo (event ID: ${eventId})`);
+    
+    try {
+      // Find todo linked to this calendar event
+      const { data: linkedTodo, error: findError } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('calendar_event_id', eventId)
+        .eq('user_id', req.user.id) // Security: ensure user owns the todo
+        .single();
+      
+      if (findError || !linkedTodo) {
+        console.log(`⚠ No linked todo found for event ${eventId}`);
+      } else {
+        // Update the linked todo with new title and due date
+        const { error: updateError } = await supabase
+          .from('todos')
+          .update({
+            title: title,
+            due_date: start
+          })
+          .eq('id', linkedTodo.id);
+        
+        if (updateError) {
+          console.error(`⚠ Failed to update linked todo: ${updateError.message}`);
+        } else {
+          console.log(`✓ Linked todo updated successfully`);
+        }
+      }
+    } catch (todoUpdateError) {
+      console.error(`⚠ Todo update error: ${todoUpdateError.message}`);
+      // Don't fail the calendar event update if todo update fails
+    }
+    
     res.json({
       connected: true,
       event: event.data
@@ -416,6 +633,41 @@ export const deleteEvent = async (req, res) => {
       calendarId: 'primary',
       eventId
     });
+    
+    // ============================================
+    // AUTO-DELETE LINKED TODO
+    // ============================================
+    // When user deletes a calendar event, automatically delete the linked todo
+    console.log(`Calendar event deleted, deleting linked todo (event ID: ${eventId})`);
+    
+    try {
+      // Find todo linked to this calendar event
+      const { data: linkedTodo, error: findError } = await supabase
+        .from('todos')
+        .select('id')
+        .eq('calendar_event_id', eventId)
+        .eq('user_id', req.user.id) // Security: ensure user owns the todo
+        .single();
+      
+      if (findError || !linkedTodo) {
+        console.log(`⚠ No linked todo found for event ${eventId}`);
+      } else {
+        // Delete the linked todo
+        const { error: deleteError } = await supabase
+          .from('todos')
+          .delete()
+          .eq('id', linkedTodo.id);
+        
+        if (deleteError) {
+          console.error(`⚠ Failed to delete linked todo: ${deleteError.message}`);
+        } else {
+          console.log(`✓ Linked todo deleted successfully`);
+        }
+      }
+    } catch (todoDeleteError) {
+      console.error(`⚠ Todo delete error: ${todoDeleteError.message}`);
+      // Don't fail the calendar event deletion if todo deletion fails
+    }
     
     res.json({
       connected: true,

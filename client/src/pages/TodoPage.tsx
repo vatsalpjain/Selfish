@@ -54,11 +54,26 @@ export default function TodoPage() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState('');
 
+    // Sync banner state
+    const [showSyncBanner, setShowSyncBanner] = useState(false);
+
     // ============================================
     // FETCH TODOS ON MOUNT
     // ============================================
     useEffect(() => {
         fetchTodos();
+
+        // Show sync banner on first visit (check localStorage)
+        const hasSeenBanner = localStorage.getItem('todoSyncBannerSeen');
+        if (!hasSeenBanner) {
+            setShowSyncBanner(true);
+            // Auto-dismiss after 5 seconds
+            const timer = setTimeout(() => {
+                setShowSyncBanner(false);
+                localStorage.setItem('todoSyncBannerSeen', 'true');
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
     }, []);
 
     // Filter todos whenever filter or todos change
@@ -302,6 +317,48 @@ export default function TodoPage() {
             {/* Main Content */}
             <main className="pt-28 px-6 pb-6">
                 <div className="max-w-5xl mx-auto">
+                    {/* Sync Info Banner - Auto-dismisses after 5s */}
+                    {showSyncBanner && (
+                        <div className="bg-blue-500/10 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-4 mb-6 animate-fade-in">
+                            <div className="flex items-start gap-3">
+                                <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" 
+                                    fill="none" 
+                                    viewBox="0 0 24 24" 
+                                    stroke="currentColor"
+                                >
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={2} 
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                                    />
+                                </svg>
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-blue-300 mb-1">📅 Calendar Sync Active</h3>
+                                    <p className="text-xs text-blue-200/80">
+                                        Todos with due dates automatically sync to Google Calendar. 
+                                        Updates to title or due date sync both ways. 
+                                        Deleting a todo also removes the calendar event.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowSyncBanner(false);
+                                        localStorage.setItem('todoSyncBannerSeen', 'true');
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                                    title="Dismiss"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Create Todo Form */}
                     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-6">
                         <h2 className="text-xl font-bold text-white mb-4">Create New Todo</h2>
@@ -537,12 +594,50 @@ export default function TodoPage() {
                                                     {/* Due Date */}
                                                     {todo.dueDate && <div>{formatDueDate(todo.dueDate)}</div>}
 
-                                                    {/* Calendar Link Indicator */}
-                                                    {todo.calendarEventId && (
-                                                        <span className="text-blue-400" title="Linked to calendar">
-                                                            📅
+                                                    {/* Calendar Sync Status */}
+                                                    {todo.calendarEventId ? (
+                                                        <span 
+                                                            className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded text-xs font-medium" 
+                                                            title="Synced with Google Calendar"
+                                                        >
+                                                            <svg 
+                                                                xmlns="http://www.w3.org/2000/svg" 
+                                                                className="h-3 w-3" 
+                                                                fill="none" 
+                                                                viewBox="0 0 24 24" 
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path 
+                                                                    strokeLinecap="round" 
+                                                                    strokeLinejoin="round" 
+                                                                    strokeWidth={2} 
+                                                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
+                                                                />
+                                                            </svg>
+                                                            SYNCED
                                                         </span>
-                                                    )}
+                                                    ) : todo.dueDate ? (
+                                                        <span 
+                                                            className="flex items-center gap-1 px-2 py-1 bg-gray-500/20 text-gray-400 border border-gray-500/50 rounded text-xs font-medium" 
+                                                            title="Calendar not connected or sync failed"
+                                                        >
+                                                            <svg 
+                                                                xmlns="http://www.w3.org/2000/svg" 
+                                                                className="h-3 w-3" 
+                                                                fill="none" 
+                                                                viewBox="0 0 24 24" 
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path 
+                                                                    strokeLinecap="round" 
+                                                                    strokeLinejoin="round" 
+                                                                    strokeWidth={2} 
+                                                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
+                                                                />
+                                                            </svg>
+                                                            NOT SYNCED
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                             </div>
 
