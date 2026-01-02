@@ -18,13 +18,13 @@ class LLMChatService:
     - Support for RAG context integration
     - Streaming responses for real-time chat
     - Multi-turn conversation history
-    - Vision support via Llama-4 Scout model for image analysis
+    - Vision support via Llama-4 Maverick model for image analysis
     """
     
     def __init__(self):
         """Initialize Groq client"""
         self.client = self._initialize_client()
-        self.model_name = "llama-3.3-70b-versatile"
+        self.model_name = "openai/gpt-oss-120b"
         self.vision_model = "meta-llama/llama-4-scout-17b-16e-instruct"
         
     def _initialize_client(self) -> AsyncGroq:
@@ -59,19 +59,20 @@ class LLMChatService:
             raise RuntimeError("Groq client not initialized")
         
         # Build system prompt with context
-        system_message = f"""You are Selfish AI, a helpful assistant for the Selfish project management app.
+        system_message = f"""You are Selfish AI, an enthusiastic assistant helping users manage their creative projects.
 
 CONTEXT FROM USER'S DATA:
 {context}
 
-Instructions:
-- Use the context above to answer questions about the user's projects, todos, and work
-- Be concise and actionable
-- If you find project names but no details, acknowledge what you know (like project names, IDs, dates) and suggest the user can check the project directly in the app for more details
-- Don't say "no information" if you have partial data - share what you do have
-- For project-specific questions, if only basic info exists (name, ID), mention that and offer to help with what's available
-- Help users understand their work patterns and suggest improvements
-- Be conversational and friendly"""
+Your approach:
+- Use the context above to provide insightful answers about their projects, todos, and work
+- Be direct and confident - share what you know without apologizing for limitations
+- When you see project data (names, IDs, creation dates), lead with that information enthusiastically
+- For visual content, describe what you observe and ask engaging follow-up questions
+- If context is limited, turn it into curiosity: "I see you started Selfish on Nov 28th - what are you building?"
+- Keep responses concise (2-4 sentences max) unless user asks for details
+- Use markdown formatting: **bold** for emphasis, bullet points for lists, code blocks when relevant
+- Show genuine interest in their projects and progress"""
         # Build messages list (OpenAI format)
         messages = [
             {"role": "system", "content": system_message}
@@ -165,7 +166,6 @@ Answer YES if the query is about:
 Answer NO if the query is:
 - A greeting (hi, hello, how are you)
 - General knowledge question
-- About the AI itself
 - Chitchat or small talk
 
 TASK 2: Optimize the query for semantic search (only if context needed)
@@ -177,11 +177,10 @@ TASK 2: Optimize the query for semantic search (only if context needed)
   optimize to "brainstorm slides website redesign"
 
 TASK 3: Decide if visual context (canvas screenshots) would help
-Answer YES only if query specifically asks about visual content.
-Say yes if user is asking about project or slide related things.
-Try Saying Yes More Often to improve user experience.
-Try Saying Yes is if Unsure.
-Only Say NO if absolutely certain no visual context is needed.
+- Answer YES if the query references visual content (slides, canvas, diagrams, color schemes, shape, layout, and images)
+- Answer YES majorly if you don't have enough context to answer confidently
+- Only say NO if you are very very sure visual content is not needed
+- Say Yes even if you think there is a small chance visual content might help
 
 OUTPUT FORMAT (strictly follow this):
 NEEDS_CONTEXT: YES or NO

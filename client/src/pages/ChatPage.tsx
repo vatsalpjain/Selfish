@@ -14,6 +14,96 @@ import {
 } from '../services/api';
 
 /**
+ * Simple markdown renderer for AI responses
+ */
+function renderMarkdown(text: string): React.ReactNode {
+    // Split by code blocks first
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    
+    return parts.map((part, idx) => {
+        // Code blocks
+        if (part.startsWith('```')) {
+            const code = part.replace(/```\w*\n?/, '').replace(/```$/, '');
+            return (
+                <pre key={idx} className="bg-black/30 rounded-lg p-3 my-2 overflow-x-auto">
+                    <code className="text-sm font-mono">{code}</code>
+                </pre>
+            );
+        }
+        
+        // Regular text with inline formatting
+        const lines = part.split('\n');
+        return lines.map((line, lineIdx) => {
+            // Headers
+            if (line.startsWith('### ')) {
+                return <h3 key={`${idx}-${lineIdx}`} className="text-lg font-bold mt-3 mb-1">{line.replace('### ', '')}</h3>;
+            }
+            if (line.startsWith('## ')) {
+                return <h2 key={`${idx}-${lineIdx}`} className="text-xl font-bold mt-4 mb-2">{line.replace('## ', '')}</h2>;
+            }
+            if (line.startsWith('# ')) {
+                return <h1 key={`${idx}-${lineIdx}`} className="text-2xl font-bold mt-4 mb-2">{line.replace('# ', '')}</h1>;
+            }
+            
+            // Bullet points
+            if (line.match(/^[\-\*]\s/)) {
+                return (
+                    <li key={`${idx}-${lineIdx}`} className="ml-4">
+                        {formatInlineMarkdown(line.replace(/^[\-\*]\s/, ''))}
+                    </li>
+                );
+            }
+            
+            // Regular paragraph
+            if (line.trim()) {
+                return (
+                    <p key={`${idx}-${lineIdx}`} className="mb-2">
+                        {formatInlineMarkdown(line)}
+                    </p>
+                );
+            }
+            
+            return <br key={`${idx}-${lineIdx}`} />;
+        });
+    });
+}
+
+/**
+ * Format inline markdown (bold, italic, code)
+ */
+function formatInlineMarkdown(text: string): React.ReactNode {
+    const parts: React.ReactNode[] = [];
+    let remaining = text;
+    let key = 0;
+    
+    while (remaining.length > 0) {
+        // Bold: **text**
+        const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+        if (boldMatch && boldMatch.index !== undefined) {
+            parts.push(remaining.slice(0, boldMatch.index));
+            parts.push(<strong key={key++} className="font-bold">{boldMatch[1]}</strong>);
+            remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
+            continue;
+        }
+        
+        // Inline code: `code`
+        const codeMatch = remaining.match(/`(.+?)`/);
+        if (codeMatch && codeMatch.index !== undefined) {
+            parts.push(remaining.slice(0, codeMatch.index));
+            parts.push(<code key={key++} className="bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono">{codeMatch[1]}</code>);
+            remaining = remaining.slice(codeMatch.index + codeMatch[0].length);
+            continue;
+        }
+        
+        // No more matches
+        parts.push(remaining);
+        break;
+    }
+    
+    return <>{parts}</>;
+}
+
+/**
  * AI Chat Page
  * Streaming chat interface with RAG-powered AI assistant
  */
@@ -142,6 +232,11 @@ export default function ChatPage() {
 
         // Load all sessions
         loadSessions();
+
+        // Auto-index user data silently on app start (fire-and-forget)
+        indexUserData()
+            .then((result) => console.log(`✅ Auto-indexed ${result.indexed_count} slides`))
+            .catch((err) => console.warn('Auto-index skipped:', err.message));
 
         // Try to restore last session from localStorage, or start new chat
         const savedSessionId = localStorage.getItem('currentChatSessionId');
@@ -436,9 +531,15 @@ export default function ChatPage() {
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-orange-500 text-white' : 'bg-white/10 backdrop-blur-sm border border-white/10 text-gray-100'}`}>
                                             <div className="text-xs mb-1 opacity-70">
-                                                {msg.role === 'user' ? 'You' : 'AI'}
+                                                {msg.role === 'user' ? 'You' : 'Selfish'}
                                             </div>
-                                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                                            <div className="prose prose-invert max-w-none">
+                                                {msg.role === 'user' ? (
+                                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                                ) : (
+                                                    renderMarkdown(msg.content)
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

@@ -1,50 +1,61 @@
 # Selfish
 
-> A visual-first project management platform combining infinite canvas workspace with intelligent calendar integration.
+> A visual-first project management platform combining infinite canvas workspace with AI-powered assistant and Google Calendar integration.
 
-
+![Dashboard](./sreenshorts/Screenshot%202026-01-01%20220216.png)
 
 ## 🎯 Overview
 
-**Selfish** is a modern project management tool that breaks free from traditional list-based interfaces. Built for individuals who think visually, it combines an infinite canvas workspace (powered by tldraw) with Google Calendar integration, all wrapped in a sleek glassmorphism UI.
-
-Think less todo-list, more creative workspace.
+**Selfish** is a modern project management tool that breaks free from traditional list-based interfaces. Built for individuals who think visually, it combines an infinite canvas workspace (powered by tldraw) with Google Calendar integration, AI chat, and todo management—all wrapped in a sleek glassmorphism UI.
 
 ### Key Features
 
 - **Infinite Canvas** - Freehand drawing, sticky notes, shapes, and text on unlimited 2D space
-- **Project Slides** - Multiple canvas states per project for iterative development
-- **Smart Calendar** - Google Calendar integration with auto-refresh tokens and event management
-- **Visual Planning** - See connections between tasks, ideas, and goals
+- **Project Slides** - Multiple canvas states per project for day-by-day progression
+- **Bidirectional Calendar Sync** - Google Calendar integration with automatic todo synchronization
+- **RAG-Powered AI Chat** - Context-aware AI assistant with access to your projects and slides
+- **Todo Management** - Priority tracking with calendar event sync
 - **Auto-Save** - All canvas state persisted to Supabase in real-time
-- **Dark Mode** - Function Health-inspired glassmorphism design
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         Frontend (React + TS)           │
-│  • Canvas Editor (tldraw)               │
-│  • Calendar Management                  │
-│  • Project Dashboard                    │
-└──────────────┬──────────────────────────┘
-               │ REST API
-               ▼
-┌─────────────────────────────────────────┐
-│       Backend (Node.js + Express)       │
-│  • JWT Authentication                   │
-│  • Google OAuth 2.0                     │
-│  • Canvas State Management              │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│           Database (Supabase)           │
-│  • Users • Projects • Canvas Slides     │
-│  • Calendar Tokens • Todos              │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   USER INTERFACE                            │
+│         (React + TypeScript + Tailwind + tldraw)            │
+│  • Dashboard  • Projects  • Calendar  • Todos  • AI Chat    │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│              API LAYER (Express.js)                         │
+│  • Auth  • Projects  • Slides  • Calendar  • Todos  • AI   │
+└──────────┬──────────────────────┬───────────────────────────┘
+           │                      │
+           ▼                      ▼
+┌────────────────────┐   ┌──────────────────────────────┐
+│  AUTH MIDDLEWARE   │   │  AI SERVICE (FastAPI/Python) │
+│  • JWT Verify      │   │  • RAG (pgvector)            │
+│  • User Context    │   │  • Groq LLM                  │
+└────────────────────┘   │  • Gemini Embeddings         │
+                         │  • Canvas Analysis           │
+                         └──────────────────────────────┘
+           │  
+           ▼  
+┌─────────────────────────────────────────────────────────────┐
+│          DATABASE (Supabase PostgreSQL + pgvector)          │
+│  • users • projects • slides • todos • embeddings           │
+│  • calendar_tokens • chat_sessions • chat_messages          │
+└─────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│            EXTERNAL INTEGRATIONS                            │
+│  • Google Calendar API (OAuth 2.0)                          │
+│  • Groq API (LLM Inference)                                 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -52,38 +63,53 @@ Think less todo-list, more creative workspace.
 ## 🚀 Tech Stack
 
 ### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
+- **React 18** with TypeScript
 - **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **tldraw** - Canvas library
+- **Tailwind CSS** - Styling with glassmorphism
+- **tldraw** - Infinite canvas editor
 - **React Router v6** - Navigation
 - **Axios** - HTTP client
 
-### Backend
-- **Node.js 18+** - Runtime
+### Backend (Node.js)
 - **Express** - Web framework
-- **@supabase/supabase-js** - Supabase client
-- **JWT** - Authentication
+- **JWT** - Authentication (30-day expiry)
+- **@supabase/supabase-js** - Database client
 - **googleapis** - Google Calendar API
 - **bcryptjs** - Password hashing
 
+### AI Service (Python)
+- **FastAPI** - Async web framework
+- **Groq API** - LLM (llama-3.3-70b-versatile, llama-4-scout for vision)
+- **Supabase pgvector** - Vector database for RAG
+- **Gemini text-embedding-004** - 768-dimensional embeddings
+
 ### Database
-- **Supabase** - PostgreSQL database
-- Tables: `users`, `projects`, `canvas_slides`, `calendar_tokens`, `todos`
+- **Supabase PostgreSQL** with pgvector extension
+- Tables: `users`, `projects`, `slides`, `todos`, `calendar_tokens`, `chat_sessions`, `chat_messages`, `embeddings`
 
 ---
 
 ## 📸 Screenshots
 
 ### Dashboard
-<img width="2213" height="1187" alt="image" src="https://github.com/user-attachments/assets/0c24f19b-d8fb-4db6-9ac4-d5b23821f14f" />
+![Dashboard](./sreenshorts/Screenshot%202026-01-01%20220216.png)
+
+### Projects View
+![Projects](./sreenshorts/Screenshot%202026-01-01%20220249.png)
 
 ### Canvas Editor
-<img width="2239" height="1196" alt="image" src="https://github.com/user-attachments/assets/f65014a0-1766-4281-810c-711670755e13" />
+![Canvas Editor](./sreenshorts/Screenshot%202026-01-01%20220416.png)
 
 ### Calendar Integration
-<img width="2239" height="1190" alt="image" src="https://github.com/user-attachments/assets/3c2a7b7b-b99d-46ed-8643-d5ee8fcfa776" />
+![Calendar](./sreenshorts/Screenshot%202026-01-01%20220452.png)
+
+### Todo Management
+![Todos](./sreenshorts/Screenshot%202026-01-01%20220520.png)
+
+### AI Chat
+![AI Chat](./sreenshorts/Screenshot%202026-01-01%20220601.png)
+
+![AI Chat Conversation](./sreenshorts/Screenshot%202026-01-01%20220630.png)
 
 ---
 
@@ -91,26 +117,37 @@ Think less todo-list, more creative workspace.
 
 ### Prerequisites
 - Node.js 18+
+- Python 3.11+
 - Supabase account
 - Google Cloud Console project (for Calendar API)
+- Groq API key
+- Google Gemini API key
 
 ### Environment Variables
 
-**Backend** (`.env` in `/server`)
+**Backend** (`server/.env`)
 ```env
 PORT=5000
 SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_KEY=your_supabase_service_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
 JWT_SECRET=your_jwt_secret
-NODE_ENV=development
-GOOGLE_CLIENT_ID=your_google_clientid
+GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:5000/api/calendar/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/calendar/callback
 ```
 
-**Frontend** (`.env` in `/client`)
+**AI Service** (`ai_services/.env`)
+```env
+GOOGLE_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_groq_api_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Frontend** (`client/.env`)
 ```env
 VITE_API_URL=http://localhost:5000
+VITE_AI_API_URL=http://localhost:8000
 ```
 
 ### Installation
@@ -130,20 +167,28 @@ VITE_API_URL=http://localhost:5000
    # Frontend
    cd ../client
    npm install
+
+   # AI Service
+   cd ../ai_services
+   pip install -r requirements.txt
    ```
 
 3. **Start development servers**
    ```bash
-   # Backend (from /server)
-   npm start
+   # Terminal 1 - Backend (from /server)
+   node server.js
 
-   # Frontend (from /client)
+   # Terminal 2 - AI Service (from /ai_services)
+   uv run
+
+   # Terminal 3 - Frontend (from /client)
    npm run dev
    ```
 
 4. **Access the application**
    - Frontend: `http://localhost:5173`
    - Backend: `http://localhost:5000`
+   - AI Service: `http://localhost:8000`
 
 ---
 
@@ -151,33 +196,40 @@ VITE_API_URL=http://localhost:5000
 
 ### Canvas Workspace
 - **Infinite 2D space** for visual planning
-- **Multiple tools**: Pen, shapes, text, sticky notes
+- **Multiple tools**: Pen, shapes, text, sticky notes, images
 - **Slide system**: Create multiple canvas states per project
 - **Auto-save**: Real-time persistence to Supabase
-- **JSON serialization**: Efficient storage of tldraw state
+- **Screenshot generation**: Auto-generated previews for slides
 
 ### Calendar Management
-- **Google Calendar sync** via OAuth 2.0
+- **Bidirectional sync** with Google Calendar
+- **Todo → Calendar**: Creating a todo with due date auto-creates calendar event
+- **Calendar → Todo**: Creating calendar event auto-creates linked todo
 - **CRUD operations**: Create, edit, delete events
-- **Search & filter**: Find events by title
 - **Auto-refresh tokens**: Seamless background token renewal
-- **Smart time zones**: Automatic timezone handling
 
-### Project Management
-- **Dashboard view**: All projects at a glance
-- **Project slides**: Day-by-day progression tracking
-- **Quick actions**: Create, edit, delete projects
-- **Real-time updates**: Instant UI feedback
+### Todo System
+- **Priority levels**: Low, Medium, High
+- **Status tracking**: Pending, In-Progress, Completed
+- **Calendar sync**: Automatic synchronization with Google Calendar
+- **Sync status badges**: Visual indicators (SYNCED/NOT SYNCED)
+
+### AI Chat
+- **Streaming responses** via Server-Sent Events
+- **Multi-session management** with persistent history
+- **RAG context**: Smart retrieval from projects, slides, and todos
+- **Canvas analysis**: Upload and analyze canvas screenshots
+- **Smart filtering**: Automatically detects project names in queries
 
 ---
 
 ## 🔐 Security
 
-- **JWT-based authentication** with HTTP-only cookies
-- **Password hashing** using bcryptjs with salt rounds
+- **JWT-based authentication** (30-day expiry)
+- **Password hashing** using bcryptjs
 - **Protected routes** on both frontend and backend
 - **OAuth 2.0** for Google Calendar access
-- **Token refresh** with secure refresh token storage
+- **Row-Level Security (RLS)** on Supabase for user isolation
 - **Environment variable** configuration for sensitive data
 
 ---
@@ -189,19 +241,24 @@ selfish/
 ├── client/                 # Frontend React application
 │   ├── src/
 │   │   ├── components/    # Reusable UI components
-│   │   ├── context/       # React context providers
+│   │   ├── context/       # React context providers (AuthContext)
 │   │   ├── pages/         # Route components
 │   │   ├── services/      # API service layer
 │   │   └── App.tsx        # Main app component
 │   └── package.json
 │
-├── server/                # Backend Node.js application
+├── server/                 # Backend Node.js application
 │   ├── controllers/       # Request handlers
-│   ├── middleware/        # Custom middleware
+│   ├── middleware/        # Auth middleware (JWT verification)
 │   ├── config/           # Supabase configuration
 │   ├── routes/           # API routes
 │   ├── server.js         # Entry point
 │   └── package.json
+│
+├── ai_services/           # Python AI service
+│   ├── main.py           # FastAPI entry point
+│   ├── rag.py            # RAG implementation with pgvector
+│   └── requirements.txt
 │
 └── README.md
 ```
@@ -210,42 +267,57 @@ selfish/
 
 ## 🧪 API Endpoints
 
-### Authentication
+### Authentication (`/api/auth`)
 - `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
+- `POST /api/auth/login` - User login (returns JWT)
+- `GET /api/auth/me` - Get current user (protected)
 
-### Projects
-- `GET /api/projects` - Get all user projects
+### Projects (`/api/projects`)
+- `GET /api/projects` - List all user projects
 - `POST /api/projects` - Create new project
+- `GET /api/projects/:id` - Get single project
 - `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
+- `DELETE /api/projects/:id` - Delete project + all slides
 
-### Canvas Slides
-- `GET /api/slides/project/:projectId` - Get project slides
+### Slides (`/api/slides`)
+- `GET /api/slides/project/:projectId` - Get all slides for project
 - `POST /api/slides` - Create new slide
-- `PUT /api/slides/:id` - Update slide canvas data
+- `GET /api/slides/:id` - Get slide by ID
+- `PUT /api/slides/:id` - Update slide (data, name, screenshot)
 - `DELETE /api/slides/:id` - Delete slide
 
-### Calendar
+### Todos (`/api/todos`)
+- `GET /api/todos` - Get all user todos
+- `POST /api/todos` - Create todo (auto-syncs to calendar)
+- `PUT /api/todos/:id` - Update todo (syncs changes)
+- `DELETE /api/todos/:id` - Delete todo (deletes linked event)
+- `PUT /api/todos/:id/complete` - Toggle completion status
+
+### Calendar (`/api/calendar`)
+- `GET /api/calendar/auth/google` - Get OAuth URL
+- `GET /api/calendar/callback` - OAuth callback handler
 - `GET /api/calendar/status` - Check connection status
-- `GET /api/calendar/events` - Fetch calendar events
-- `POST /api/calendar/addEvent` - Create event
-- `PUT /api/calendar/updateEvent` - Update event
-- `DELETE /api/calendar/deleteEvent` - Delete event
-- `GET /api/calendar/auth/google` - Initiate OAuth flow
-- `DELETE /api/calendar/disconnect` - Disconnect calendar
+- `GET /api/calendar/events` - Get all calendar events
+- `POST /api/calendar/addEvent` - Create event (auto-creates todo)
+- `PUT /api/calendar/updateEvent` - Update event (updates linked todo)
+- `DELETE /api/calendar/deleteEvent` - Delete event (deletes linked todo)
+- `DELETE /api/calendar/disconnect` - Remove calendar connection
+
+### AI Chat (`/api/ai`)
+- `GET /api/ai/health` - Check AI service status
+- `POST /api/ai/index` - Index user data for RAG
+- `POST /api/ai/chat` - Stream chat response
+- `POST /api/ai/analyze-canvas` - Analyze canvas screenshot
+- `GET /api/ai/chat-history/:sessionId` - Get chat messages
+- `GET /api/ai/chat-sessions` - Get all chat sessions
+- `DELETE /api/ai/chat-sessions/:sessionId` - Delete session
 
 ---
-
-
-
 
 ## 🙏 Acknowledgments
 
 <div align="center">
 
 **[⬆ Back to Top](#selfish)**
-
-Crazy
 
 </div>
