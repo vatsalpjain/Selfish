@@ -2,7 +2,7 @@
 
 > A visual-first project management platform combining infinite canvas workspace with AI-powered assistant and Google Calendar integration.
 
-![Dashboard](./sreenshorts/Screenshot%202026-01-01%20220216.png)
+<video src="https://github.com/user-attachments/assets/25d9f5ca-3aa2-4788-8184-94724af11012" width="600" controls>Demo</video>
 
 ## 🎯 Overview
 
@@ -92,24 +92,24 @@
 ## 📸 Screenshots
 
 ### Dashboard
-![Dashboard](./sreenshorts/Screenshot%202026-01-01%20220216.png)
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220249" src="https://github.com/user-attachments/assets/596be5d1-4c2a-4a57-a3fb-b54f55e4cd5d" />
 
 ### Projects View
-![Projects](./sreenshorts/Screenshot%202026-01-01%20220249.png)
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220452" src="https://github.com/user-attachments/assets/d1ca73c2-6361-4f22-903c-e9fa8d0aa940" />
 
 ### Canvas Editor
-![Canvas Editor](./sreenshorts/Screenshot%202026-01-01%20220416.png)
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220520" src="https://github.com/user-attachments/assets/db235a90-45ec-4202-9e99-272945a789fc" />
 
 ### Calendar Integration
-![Calendar](./sreenshorts/Screenshot%202026-01-01%20220452.png)
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220416" src="https://github.com/user-attachments/assets/bcea4956-6fb5-4506-9607-a8f6fbeaed49" />
 
 ### Todo Management
-![Todos](./sreenshorts/Screenshot%202026-01-01%20220520.png)
+<img width="2240" height="1328" alt="Screenshot 2026-01-01 220216" src="https://github.com/user-attachments/assets/3d081576-39e9-490f-a7f9-7c81385de0b3" />
 
 ### AI Chat
-![AI Chat](./sreenshorts/Screenshot%202026-01-01%20220601.png)
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220601" src="https://github.com/user-attachments/assets/327394e4-0bb6-4361-a281-4fdc01f627ba" />
+<img width="1120" height="664" alt="Screenshot 2026-01-01 220630" src="https://github.com/user-attachments/assets/60c721c6-5aca-40ee-8305-42e4415de894" />
 
-![AI Chat Conversation](./sreenshorts/Screenshot%202026-01-01%20220630.png)
 
 ---
 
