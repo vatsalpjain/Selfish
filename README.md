@@ -225,7 +225,7 @@ VITE_AI_API_URL=http://localhost:8000
 
 The AI service uses a smart 5-stage pipeline to minimize token usage while maximizing context quality:
 
-<img src="./selfish_architecture.png" alt="Token Optimization Architecture" width="800" />
+<img width="512" height="512" alt="image" src="https://github.com/user-attachments/assets/a00dfea4-f7b7-4eb8-9d7e-88468bd38082" />
 
 **Key Optimizations:**
 1. **Query Intelligence** - Lightweight classifier (llama-3.1-8b-instant) determines if RAG is needed in ~200 tokens
@@ -236,7 +236,7 @@ The AI service uses a smart 5-stage pipeline to minimize token usage while maxim
 
 #### Token Savings in Action
 
-<img src="./selfish_comparison.png" alt="Query Comparison Flow" width="800" />
+<img width="512" height="512" alt="image" src="https://github.com/user-attachments/assets/1734ac8e-7168-4d48-a1a7-89e4f5e50dd5" />
 
 ---
 
