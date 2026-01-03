@@ -221,6 +221,23 @@ VITE_AI_API_URL=http://localhost:8000
 - **Canvas analysis**: Upload and analyze canvas screenshots
 - **Smart filtering**: Automatically detects project names in queries
 
+### 🧠 AI Token Optimization Architecture
+
+The AI service uses a smart 5-stage pipeline to minimize token usage while maximizing context quality:
+
+<img src="./selfish_architecture.png" alt="Token Optimization Architecture" width="800" />
+
+**Key Optimizations:**
+1. **Query Intelligence** - Lightweight classifier (llama-3.1-8b-instant) determines if RAG is needed in ~200 tokens
+2. **Hybrid RAG** - Projects/Todos sent as plain text, only slides use vector embeddings
+3. **Project Filtering** - Infers project scope from query to reduce irrelevant context
+4. **Conditional Vision** - Vision model only used when visual content is needed
+5. **Pre-indexed Descriptions** - AI descriptions generated at save time, eliminating vision calls at query time
+
+#### Token Savings in Action
+
+<img src="./selfish_comparison.png" alt="Query Comparison Flow" width="800" />
+
 ---
 
 ## 🔐 Security
