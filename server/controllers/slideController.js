@@ -62,6 +62,7 @@ const getSlidesByProjectId = async (req, res) => {
             name: s.name,
             slideData: JSON.stringify(s.slide_data),
             screenshotUrl: s.screenshot_url || null,
+            needsDescription: !!(s.screenshot_url && !s.description),
             createdAt: s.created_at
         }));
 
@@ -113,27 +114,9 @@ const updateSlide = async (req, res) => {
                     
                     if (urlData?.publicUrl) {
                         updates.screenshot_url = urlData.publicUrl;
-                    }
-                    // Generate AI description for the slide
-                    try {
-                        const descResponse = await axios.post(
-                            `${AI_SERVICE_URL}/analyze-canvas`,
-                            { 
-                                user_id: req.user?.id || 'unknown',  // From auth middleware
-                                image_data: screenshotData,
-                                generate_description: true 
-                            },
-                            { timeout: 30000 }
-                        );
-                        
-                        if (descResponse.data.success) {
-                            updates.description = descResponse.data.description;
-                            updates.content_type = descResponse.data.content_type;
-                            console.log(`📝 Generated description for slide ${slideId}`);
-                        }
-                    } catch (descError) {
-                        console.warn('Description generation failed, continuing:', descError.message);
-                        // Don't block save if description fails
+                        // Clear description - will regenerate when user exits project
+                        updates.description = null;
+                        updates.content_type = null;
                     }
                 }
             } catch (screenshotError) {
@@ -178,6 +161,14 @@ const deleteSlide = async (req, res) => {
             .from('slides-screenshots')
             .remove([filePath]);  
         
+        // Delete embedding for this slide
+        await supabase
+            .from('embeddings')
+            .delete()
+            .eq('document_id', slideId);
+        
+        console.log(`🗑️ Deleted embedding for slide ${slideId}`);
+        
         // Delete slide from database
         const { error } = await supabase
             .from('slides')
@@ -193,9 +184,92 @@ const deleteSlide = async (req, res) => {
     }
 }
 
+// @desc    Generate descriptions for slides in background
+// @route   POST /api/slides/generate-descriptions
+const generateDescriptions = async (req, res) => {
+    const { slideIds } = req.body;
+    
+    if (!slideIds?.length) {
+        return res.status(400).json({ message: 'No slide IDs' });
+    }
+    
+    // Return immediately
+    res.status(202).json({ message: 'Queued', count: slideIds.length });
+    
+    // Background processing
+    setImmediate(async () => {
+        console.log(`🔄 Generating descriptions for ${slideIds.length} slides`);
+        
+        for (const slideId of slideIds) {
+            try {
+                const { data: slide } = await supabase
+                    .from('slides')
+                    .select('screenshot_url, name, project_id')
+                    .eq('id', slideId)
+                    .single();
+                
+                if (!slide?.screenshot_url) continue;
+                
+                // Fetch screenshot
+                const imgResponse = await axios.get(slide.screenshot_url, {
+                    responseType: 'arraybuffer'
+                });
+                const base64 = Buffer.from(imgResponse.data).toString('base64');
+                
+                // Call AI service for description
+                const descResponse = await axios.post(
+                    `${AI_SERVICE_URL}/analyze-canvas`,
+                    { 
+                        user_id: req.user?.id,
+                        image_data: `data:image/png;base64,${base64}`,
+                        generate_description: true 
+                    },
+                    { timeout: 60000 }
+                );
+                
+                if (descResponse.data.success) {
+                    // Update description in slides table
+                    await supabase
+                        .from('slides')
+                        .update({
+                            description: descResponse.data.description,
+                            content_type: descResponse.data.content_type
+                        })
+                        .eq('id', slideId);
+                    
+                    console.log(`📝 Generated: ${slideId}`);
+                    
+                    // Also update embedding for this slide
+                    try {
+                        await axios.post(
+                            `${AI_SERVICE_URL}/update-slide-embedding`,
+                            {
+                                user_id: req.user?.id,
+                                slide_id: slideId,
+                                slide_name: slide.name || 'Untitled',
+                                project_id: slide.project_id,
+                                description: descResponse.data.description
+                            },
+                            { timeout: 30000 }
+                        );
+                        
+                        console.log(`📊 Embedded: ${slideId}`);
+                    } catch (embedError) {
+                        console.warn(`⚠️ Embedding failed: ${embedError.message}`);
+                    }
+                }
+            } catch (err) {
+                console.error(`❌ Failed: ${slideId}`, err.message);
+            }
+        }
+        console.log(`✅ Done`);
+    });
+};
+
 export {
     createSlide,
     getSlidesByProjectId,
     updateSlide,
-    deleteSlide
+    deleteSlide,
+    generateDescriptions
 };

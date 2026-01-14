@@ -74,6 +74,14 @@ class IndexResponse(BaseModel):
     breakdown: Optional[Dict[str, int]] = None
 
 
+class SlideEmbeddingRequest(BaseModel):
+    user_id: str
+    slide_id: str
+    slide_name: str
+    project_id: str
+    description: str
+
+
 # HEALTH CHECK
 @app.get("/")
 async def root():
@@ -109,12 +117,29 @@ async def index_user_data(request: IndexRequest):
         raise HTTPException(status_code=500, detail=f"Failed to index user data: {str(e)}")
 
 
+# SINGLE SLIDE EMBEDDING UPDATE ENDPOINT
+@app.post("/update-slide-embedding")
+async def update_slide_embedding(request: SlideEmbeddingRequest):
+    """Update embedding for a single slide after description changes"""
+    try:
+        result = rag_service.update_single_embedding(
+            user_id=request.user_id,
+            slide_id=request.slide_id,
+            slide_name=request.slide_name,
+            project_id=request.project_id,
+            description=request.description
+        )
+        return {"success": result.get("success", False), "message": result.get("message")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # CHAT ENDPOINT - WITH MULTIMODAL SUPPORT AND HYBRID RAG
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
         # Pass query AND history to optimizer for context-aware query reformulation
-        optimized_query, needs_image, needs_context = await llm_service.optimize_query(
+        optimized_query, needs_image, needs_context, project_names = await llm_service.optimize_query(
             request.query,
             request.history  # History helps resolve references like "that project", "the second one"
         )
@@ -128,21 +153,25 @@ async def chat(request: ChatRequest):
             direct_context = rag_service.fetch_direct_context(request.user_id)
             
             # PART 2: Semantic search for relevant slides (top 5)
-            # Smart project filtering: If no project_id provided, try to extract from query
+            # Smart project filtering using project_names from query optimizer
             effective_project_id = request.project_id
-            if not effective_project_id:
-                # Try to infer project from query by matching against user's projects
-                user_data = rag_service.fetch_user_data(request.user_id)
-                projects = user_data.get("projects", [])
-                
-                query_lower = request.query.lower()
-                for project in projects:
-                    project_title = project.get("title", "").lower()
-                    # Check if project name appears in query (fuzzy match)
-                    if project_title and project_title in query_lower:
-                        effective_project_id = project.get("id")
-                        print(f"🎯 Detected project filter: '{project.get('title')}' ({effective_project_id})")
-                        break
+            
+            if not effective_project_id and project_names:
+                # Only filter if EXACTLY one project mentioned (from query optimizer)
+                if project_names == ['ALL'] or len(project_names) != 1:
+                    # Multiple projects or ALL - no filter, semantic search handles it
+                    effective_project_id = None
+                    if project_names != ['ALL'] and len(project_names) > 1:
+                        print(f"📊 Multiple projects: {project_names} - no filter applied")
+                elif len(project_names) == 1:
+                    # Single project - find its ID
+                    user_data = rag_service.fetch_user_data(request.user_id)
+                    projects = user_data.get("projects", [])
+                    for project in projects:
+                        if project.get("title", "").lower() == project_names[0].lower():
+                            effective_project_id = project.get("id")
+                            print(f"🎯 Single project filter: '{project_names[0]}'")
+                            break
             
             slide_context_result = rag_service.query_context(
                 query=optimized_query,
@@ -177,7 +206,17 @@ async def chat(request: ChatRequest):
         images = []
         if needs_visual:
             try:
-                for doc in context_result.get("documents", [])[:5]:
+                docs_to_use = context_result.get("documents", [])
+                
+                # If single project detected, filter to only that project's slides
+                if effective_project_id:
+                    docs_to_use = [
+                        doc for doc in docs_to_use
+                        if doc.get("metadata", {}).get("project_id") == effective_project_id
+                    ]
+                    print(f"🖼️ Filtered to {len(docs_to_use)} slides from project")
+                
+                for doc in docs_to_use[:5]:
                     url = doc.get("metadata", {}).get("screenshot_url")
                     name = doc.get("metadata", {}).get("name", "Unknown")
                     print(f"   Doc: {name}, URL: {url}")

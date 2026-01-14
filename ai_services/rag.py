@@ -123,6 +123,53 @@ class RAGService:
             return [0.0] * 768  # text-embedding-004 dimension
     
     
+    def update_single_embedding(self, user_id: str, slide_id: str, slide_name: str, project_id: str, description: str) -> Dict[str, Any]:
+        """
+        Update embedding for a single slide.
+        Called after description is generated.
+        
+        Args:
+            user_id: UUID of the user
+            slide_id: UUID of the slide
+            slide_name: Name of the slide
+            project_id: UUID of the project this slide belongs to
+            description: AI-generated description of the slide
+            
+        Returns:
+            Dictionary with success status and message
+        """
+        try:
+            # Build document text (same format as full indexing)
+            doc_text = f"Slide: {slide_name}\nDescription: {description}"
+            
+            # Create embedding
+            embedding = self.create_embedding(doc_text)
+            
+            if not embedding or embedding == [0.0] * 768:
+                return {"success": False, "message": "Embedding creation failed"}
+            
+            # Upsert to Supabase (replaces existing if present)
+            self.supabase.rpc('upsert_embedding', {
+                'p_user_id': user_id,
+                'p_document_type': 'slide',
+                'p_document_id': slide_id,
+                'p_text_content': doc_text,
+                'p_embedding': embedding,
+                'p_metadata': {
+                    'slide_name': slide_name,
+                    'project_id': project_id,
+                    'type': 'slide'
+                }
+            }).execute()
+            
+            print(f"📊 Updated embedding for slide {slide_id} (project: {project_id})")
+            return {"success": True, "message": f"Embedding updated for {slide_name}"}
+            
+        except Exception as e:
+            print(f"❌ Failed to update embedding: {e}")
+            return {"success": False, "message": str(e)}
+    
+    
     def fetch_direct_context(self, user_id: str) -> str:
         """
         Fetch projects and todos directly as formatted text context (no embeddings)

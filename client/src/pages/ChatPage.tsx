@@ -19,7 +19,7 @@ import {
 function renderMarkdown(text: string): React.ReactNode {
     // Split by code blocks first
     const parts = text.split(/(```[\s\S]*?```)/g);
-    
+
     return parts.map((part, idx) => {
         // Code blocks
         if (part.startsWith('```')) {
@@ -30,7 +30,7 @@ function renderMarkdown(text: string): React.ReactNode {
                 </pre>
             );
         }
-        
+
         // Regular text with inline formatting
         const lines = part.split('\n');
         return lines.map((line, lineIdx) => {
@@ -44,7 +44,7 @@ function renderMarkdown(text: string): React.ReactNode {
             if (line.startsWith('# ')) {
                 return <h1 key={`${idx}-${lineIdx}`} className="text-2xl font-bold mt-4 mb-2">{line.replace('# ', '')}</h1>;
             }
-            
+
             // Bullet points
             if (line.match(/^[\-\*]\s/)) {
                 return (
@@ -53,7 +53,7 @@ function renderMarkdown(text: string): React.ReactNode {
                     </li>
                 );
             }
-            
+
             // Regular paragraph
             if (line.trim()) {
                 return (
@@ -62,7 +62,7 @@ function renderMarkdown(text: string): React.ReactNode {
                     </p>
                 );
             }
-            
+
             return <br key={`${idx}-${lineIdx}`} />;
         });
     });
@@ -75,7 +75,7 @@ function formatInlineMarkdown(text: string): React.ReactNode {
     const parts: React.ReactNode[] = [];
     let remaining = text;
     let key = 0;
-    
+
     while (remaining.length > 0) {
         // Bold: **text**
         const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
@@ -85,7 +85,7 @@ function formatInlineMarkdown(text: string): React.ReactNode {
             remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
             continue;
         }
-        
+
         // Inline code: `code`
         const codeMatch = remaining.match(/`(.+?)`/);
         if (codeMatch && codeMatch.index !== undefined) {
@@ -94,12 +94,12 @@ function formatInlineMarkdown(text: string): React.ReactNode {
             remaining = remaining.slice(codeMatch.index + codeMatch[0].length);
             continue;
         }
-        
+
         // No more matches
         parts.push(remaining);
         break;
     }
-    
+
     return <>{parts}</>;
 }
 
@@ -233,10 +233,9 @@ export default function ChatPage() {
         // Load all sessions
         loadSessions();
 
-        // Auto-index user data silently on app start (fire-and-forget)
-        indexUserData()
-            .then((result) => console.log(`✅ Auto-indexed ${result.indexed_count} slides`))
-            .catch((err) => console.warn('Auto-index skipped:', err.message));
+        // NOTE: Auto-indexing removed - embeddings are now updated incrementally
+        // when user exits project page (after description generation)
+        // Manual "Index Data" button is still available for fallback
 
         // Try to restore last session from localStorage, or start new chat
         const savedSessionId = localStorage.getItem('currentChatSessionId');

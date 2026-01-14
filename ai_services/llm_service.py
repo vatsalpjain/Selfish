@@ -123,12 +123,11 @@ Your approach:
             print(f"Error in streaming response: {e}")
             yield f"I encountered an error: {str(e)}"
     
-
     async def optimize_query(
         self,
         query: str,
         history: Optional[List[Dict[str, str]]] = None
-    ) -> Tuple[str, bool, bool]:
+    ) -> Tuple[str, bool, bool, List[str]]:
         """
         Optimize user query for RAG and determine if visual context is needed.
         Uses conversation history to understand contextual references.
@@ -138,7 +137,7 @@ Your approach:
             history: Previous conversation messages for context
         
         Returns:
-            Tuple of (optimized_query, needs_image, needs_context)
+            Tuple of (optimized_query, needs_image, needs_context, project_names)
         """
         if not self.client:
             raise RuntimeError("Groq client not initialized")
@@ -177,38 +176,61 @@ TASK 2: Optimize the query for semantic search (only if context needed)
   optimize to "brainstorm slides website redesign"
 
 TASK 3: Decide if visual context (canvas screenshots) would help
-- Answer YES if the query references visual content (slides, canvas, diagrams, color schemes, shape, layout, and images)
-- Answer YES majorly if you don't have enough context to answer confidently
-- Only say NO if you are very very sure visual content is not needed
-- Say Yes even if you think there is a small chance visual content might help
+- **DEFAULT TO YES** if the query is about ANY project, work, or user data
+- Slides/canvas are the PRIMARY source of project information
+- Say YES for: project questions, "what did I do", "explain my work", "tell me about [project]"
+- Only say NO for: greetings, general knowledge, todo/task questions (text-only data)
+
+TASK 4: Identify mentioned project names
+- If the user mentions specific project name(s), list them
+- If user says "that project", "it", "the first one", resolve from conversation history
+- If user asks about "all projects" or wants to compare projects, output: ALL
+- If no specific project is mentioned, output: NONE
 
 OUTPUT FORMAT (strictly follow this):
 NEEDS_CONTEXT: YES or NO
 OPTIMIZED: <optimized search query or "none" if no context needed>
 NEEDS_IMAGE: YES or NO
+PROJECT_NAMES: <comma-separated project names, or ALL, or NONE>
 
 Examples:
 Query: "How are you?"
 NEEDS_CONTEXT: NO
 OPTIMIZED: none
 NEEDS_IMAGE: NO
+PROJECT_NAMES: NONE
 
 Query: "What are my pending tasks?"
 NEEDS_CONTEXT: YES
 OPTIMIZED: todos pending tasks status
 NEEDS_IMAGE: NO
+PROJECT_NAMES: NONE
 
-Query: "Show me my brainstorm slides"
+Query: "Tell me about AutoRAG project"
 NEEDS_CONTEXT: YES
-OPTIMIZED: brainstorm slides canvas
+OPTIMIZED: autorag project content details
 NEEDS_IMAGE: YES
+PROJECT_NAMES: AutoRAG
+
+Query: "What did I do in my website project?"
+NEEDS_CONTEXT: YES
+OPTIMIZED: website project work progress
+NEEDS_IMAGE: YES
+PROJECT_NAMES: website
+
+Query: "Compare AutoRAG and News App projects"
+NEEDS_CONTEXT: YES
+OPTIMIZED: autorag news app projects comparison
+NEEDS_IMAGE: YES
+PROJECT_NAMES: AutoRAG, News App
 
 With History:
-HISTORY: USER: Show me website project slides
-QUERY: What about the brainstorm one?
+HISTORY: USER: Show me AutoRAG project slides
+QUERY: What about that project?
 NEEDS_CONTEXT: YES
-OPTIMIZED: brainstorm slides website project
+OPTIMIZED: autorag project slides
 NEEDS_IMAGE: YES
+PROJECT_NAMES: AutoRAG
 
 Current Query: {query}
 """
@@ -216,7 +238,7 @@ Current Query: {query}
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_completion_tokens=200,
+                max_completion_tokens=300,
             )
             
             result = response.choices[0].message.content.strip()
@@ -224,7 +246,8 @@ Current Query: {query}
             # Parse response
             optimized_query = query  # Fallback
             needs_image = False
-            needs_context = True 
+            needs_context = True
+            project_names = []
             
             for line in result.split('\n'):
                 if line.startswith('NEEDS_CONTEXT:'):
@@ -235,12 +258,19 @@ Current Query: {query}
                         optimized_query = query
                 elif line.startswith('NEEDS_IMAGE:'):
                     needs_image = 'YES' in line.upper()
-            print(f"🔄 Query: '{query}' → '{optimized_query}' | 📄 Context: {needs_context} | 🖼️ Image: {needs_image}")
-            return optimized_query, needs_image, needs_context
+                elif line.startswith('PROJECT_NAMES:'):
+                    names_str = line.replace('PROJECT_NAMES:', '').strip()
+                    if names_str.upper() == 'ALL':
+                        project_names = ['ALL']
+                    elif names_str.upper() != 'NONE' and names_str:
+                        project_names = [n.strip() for n in names_str.split(',')]
+            
+            print(f"🔄 Query: '{query}' → '{optimized_query}' | 📄 Context: {needs_context} | 🖼️ Image: {needs_image} | 📁 Projects: {project_names}")
+            return optimized_query, needs_image, needs_context, project_names
             
         except Exception as e:
             print(f"Error optimizing query: {e}")
-            return query, False, True
+            return query, False, True, []
     
     async def generate_slide_description(self, image_data: str) -> str:
         if not self.client:
@@ -251,16 +281,29 @@ Current Query: {query}
             if image_data.startswith('data:image'):
                 image_data = image_data.split(',')[1]
             
-            prompt = """Analyze this canvas/slide image and provide a concise description.
-    Focus on:
-    1. What type of content is this? (flowchart, brainstorm, diagram, notes, wireframe, etc.)
-    2. What are the main elements or concepts shown?
-    3. What relationships or connections exist between elements?
-    4. What is the overall purpose or topic?
-    Output format:
-    TYPE: <content type>
-    SUMMARY: <2-3 sentence description of the visual content and its meaning>
-    Keep the summary under 100 words. Be specific about what you see."""
+            prompt = """Analyze this canvas/slide image for a personal productivity app. Your description will be used for semantic search, so extract ALL searchable information.
+
+EXTRACT AND INCLUDE:
+1. TYPE: What kind of content? (flowchart, brainstorm, diagram, notes, wireframe, todo-list, mind-map, kanban, timeline, sketch, etc.)
+
+2. TEXT CONTENT: List ALL visible text, labels, titles, bullet points, and written content you can read. Quote important phrases exactly.
+
+3. TOPICS & KEYWORDS: What subjects, projects, or themes are discussed? (e.g., "React setup", "marketing campaign", "user authentication", "budget planning")
+
+4. STRUCTURE: How is the content organized? (numbered list, hierarchical, connected nodes, timeline, grid, etc.)
+
+5. KEY DETAILS: Any specific items like:
+   - Names of projects, files, or technologies mentioned
+   - Dates, deadlines, or time references
+   - Problems/solutions outlined
+   - Action items or next steps
+   - Any numbers, prices, or metrics
+
+OUTPUT FORMAT:
+TYPE: <content type>
+CONTENT: <Detailed description including quoted text, topics, structure, and key details. Be thorough - this powers semantic search.>
+
+Be specific and exhaustive about text content. Quote exact text when visible."""
 
             response = await self.client.chat.completions.create(
                 model=self.vision_model,
@@ -272,7 +315,7 @@ Current Query: {query}
                     ]
                 }],
                 temperature=0.3,
-                max_completion_tokens=200,
+                max_completion_tokens=500,
             )
             
             return response.choices[0].message.content.strip()

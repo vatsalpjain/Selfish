@@ -23,6 +23,7 @@ interface Slide {
   name: string;
   slideData?: string; // JSON string from backend
   screenshotUrl?: string; // URL of canvas screenshot
+  needsDescription?: boolean; // True if slide needs AI description
   createdAt: string;
 }
 // Define the shape of a Project object
@@ -85,6 +86,36 @@ export default function ProjectPage() {
 
     fetchData();
   }, [projectId]);
+
+  // Generate descriptions when user LEAVES project page (any navigation)
+  useEffect(() => {
+    const triggerGeneration = () => {
+      const needsUpdate = slides.filter(s => s.needsDescription);
+      if (!needsUpdate.length) return;
+
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      console.log(`🔄 Generating ${needsUpdate.length} descriptions`);
+
+      fetch(`${import.meta.env.VITE_API_URL}/api/slides/generate-descriptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ slideIds: needsUpdate.map(s => s._id) }),
+        keepalive: true
+      }).catch(() => { });
+    };
+
+    window.addEventListener('beforeunload', triggerGeneration);
+
+    return () => {
+      window.removeEventListener('beforeunload', triggerGeneration);
+      triggerGeneration(); // Fires on React navigation (unmount)
+    };
+  }, [slides]);
 
   //get current slide data
   const getCurrentSlide = () => slides.find((s) => s._id === currentSlideId);
