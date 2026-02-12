@@ -108,15 +108,16 @@ class RAGService:
             List of floats representing the embedding vector
         """
         try:
-            # Use google-generativeai for embeddings (google-genai doesn't support embedding API yet)
-            import google.generativeai as genai_legacy
-            genai_legacy.configure(api_key=os.getenv("GEMINI_API_KEY"))
-            
-            result = genai_legacy.embed_content(
-                model="models/text-embedding-004",
-                content=text
+            result = self.genai_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=text,
+                config={
+                    "output_dimensionality": 768   # IMPORTANT: match old model
+                }
             )
-            return result['embedding']
+            
+            embedding = result.embeddings[0].values
+            return embedding
         except Exception as e:
             print(f"Error creating embedding: {e}")
             # Return a default zero vector if embedding fails
